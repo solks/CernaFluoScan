@@ -8,6 +8,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.image as mpimg
 
+import pyqtgraph as pg
+
 import numpy as np
 import random
 
@@ -21,7 +23,7 @@ class UI(QWidget):
         super().__init__()
 
         main_window.resize(self.W_WIDTH, self.W_HEIGHT)
-        self.centerWindow(main_window)
+        self.center_window(main_window)
 
         main_window.setWindowTitle('CernaFluoScan')
         main_window.statusBar().showMessage("Cerna Fluorescence Scan Microscope control")
@@ -43,7 +45,7 @@ class UI(QWidget):
 
         # --- Main Layout ---
 
-        self.fileMenu.addAction('&Quit', self.fileQuit, Qt.CTRL + Qt.Key_Q)
+        self.fileMenu.addAction('&Quit', self.file_quit, Qt.CTRL + Qt.Key_Q)
         self.helpMenu.addAction('&About', self.about)
 
         main_lay = QVBoxLayout(self.mainWidget)
@@ -125,25 +127,21 @@ class UI(QWidget):
 
         # --- CCD Frame Layout ---
 
-        ccd_image = CCDFrame()
-
-        ccd_row = Graph(self.mainWidget, width=5, height=2)
-        ccd_col = Graph(self.mainWidget, width=2, height=2)
-        # ccd_row.plot(ccdImage.img_arr[124, :])S
+        self.CCDFrame = self.ccd_frame_widget()
+        # self.CCDFrame.setXRange(0, 1024, padding=0)
+        self.CCDRow = self.ccd_graph_widget()
+        self.CCDRow.setLabels(left="Intensity", bottom="nm")
+        self.CCDCol = self.ccd_graph_widget()
+        self.CCDCol.setLabels(left="row", bottom="Intensity")
 
         ccd_lay = QGridLayout(topright_frame)
-        ccd_lay.setRowStretch(0, 0)
-        ccd_lay.setRowStretch(1, 1)
+        ccd_lay.setRowStretch(0, 2)
+        ccd_lay.setRowStretch(1, 3)
         ccd_lay.setColumnStretch(0, 1)
-        ccd_lay.setColumnStretch(1, 0)
-        ccd_lay.addWidget(ccd_image, 0, 1)
-        ccd_lay.addWidget(ccd_row, 1, 1)
-        ccd_lay.addWidget(ccd_col, 0, 0)
-
-        # ccd = QFrame(self.main_widget)
-        # ccd.setFrameShape(QFrame.StyledPanel)
-        # ccd.setObjectName("myObject")
-        # ccd.setStyleSheet("#myObject { border: 1px solid black; }")
+        ccd_lay.setColumnStretch(1, 6)
+        ccd_lay.addWidget(self.CCDFrame, 0, 1)
+        ccd_lay.addWidget(self.CCDRow, 1, 1)
+        ccd_lay.addWidget(self.CCDCol, 0, 0)
 
         # --- Andor Camera Settings ---
 
@@ -248,13 +246,58 @@ class UI(QWidget):
         cam_settings_lay.addWidget(cam_hshift_group, 0, Qt.AlignCenter)
         cam_settings_lay.addWidget(cam_vshift_group, 0, Qt.AlignCenter)
 
-    def centerWindow(self, window):
+    def ccd_frame_widget(self):
+        framedata = np.random.randint(0, 80, (255, 1024), dtype=np.uint8)
+        framedata2 = np.random.randint(0, 250, (255, 1024), dtype=np.uint8)
+
+        bg_color = pg.mkColor('#29353D')
+        pg.setConfigOptions(background=bg_color)
+        pg.setConfigOptions(imageAxisOrder='row-major')
+
+        frame = pg.ImageView()
+        img = pg.ImageItem(framedata, autoLevels=False)
+        frame.addItem(img)
+        # frame.autoRange()
+
+        size_policy = QSizePolicy()
+        size_policy.setHeightForWidth(True)
+        size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
+        size_policy.setVerticalPolicy(QSizePolicy.Expanding)
+        frame.setSizePolicy(size_policy)
+        frame.setMinimumSize(512, 128)
+        frame.ui.histogram.hide()
+        frame.ui.roiBtn.hide()
+        frame.ui.menuBtn.hide()
+
+        # cross hair
+        pen_color = pg.mkColor('#C8C86477')
+        c_pen = pg.mkPen(color=pen_color, width=1)
+        v_line = pg.InfiniteLine(angle=90, pen=c_pen, movable=True)
+        h_line = pg.InfiniteLine(angle=0, pen=c_pen, movable=True)
+        frame.addItem(v_line, ignoreBounds=True)
+        frame.addItem(h_line, ignoreBounds=True)
+
+        return frame
+
+    def ccd_graph_widget(self):
+        bg_color = pg.mkColor('#29353D')
+        pg.setConfigOptions(background=bg_color)
+
+        graph = pg.PlotWidget()
+        graph.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        cross_arrow = pg.GraphicsObject()
+        graph.addItem(cross_arrow)
+
+        return graph
+
+    def center_window(self, window):
         qr = window.frameGeometry()
         cp = QDesktopWidget().availableGeometry().center()
         qr.moveCenter(cp)
         window.move(qr.topLeft())
 
-    def fileQuit(self):
+    def file_quit(self):
         self.main_window.close()
 
         # reply = QMessageBox.question(self, 'Message',
@@ -276,84 +319,3 @@ Oleksandr Stanovyi, astanovyi@gmail.com
 
 © Copyright 2019"""
                           )
-
-
-class CCDFrame(QLabel):
-
-    IMG_HEIGHT = 255
-    IMG_WIDTH = 1024
-
-    def __init__(self, pm=None):
-        super().__init__()
-
-        self.img = QImage(self.IMG_WIDTH, self.IMG_HEIGHT, QImage.Format_Grayscale8)
-        ptr = self.img.bits()
-        ptr.setsize(self.img.byteCount())
-        self.img_arr = np.ndarray(shape=(self.IMG_HEIGHT, self.IMG_WIDTH), dtype=np.uint8, buffer=ptr)
-        # self.img_arr = np.asarray(ptr, dtype=np.uint8).reshape(self.IMG_HEIGHT, self.IMG_WIDTH, 1)
-
-        if(pm is not None):
-            self.setPixmap(pm)
-        else:
-            # framedata = np.zeros((self.IMG_WIDTH, self.IMG_HEIGHT), dtype=np.uint8)
-            framedata = np.random.randint(0, 80, (self.IMG_HEIGHT, self.IMG_WIDTH), dtype=np.uint8)
-            # framedata = mpimg.imread('ccd-frame2_bw.png')
-            # framedata = framedata * 255
-            # framedata = framedata.astype(np.uint8)
-            self.update_pixmap(framedata)
-
-        self.setMouseTracking(True)
-        self.label = QLabel(self)
-        self.mousePos = (0, 0)
-
-        self.initUI()
-
-    def initUI(self):
-        self.setGeometry(0, 0, self.IMG_WIDTH, self.IMG_HEIGHT)
-
-        self.label.move(10, 0)
-        self.label.setStyleSheet("QLabel {color : Gray; }")
-        self.label.setText('Col: %d \nRow: %d' % (0, 0))
-
-        self.setCursor(Qt.CrossCursor)
-
-        self.show()
-
-    def update_pixmap(self, pm_data):
-        # for i in range(0, self.IMG_HEIGHT):
-        #     for j in range(0, self.IMG_WIDTH):
-        #         self.img_arr[i, j] = pm_data[i, j]
-        # self.img_arr = pm_data
-        np.copyto(self.img_arr, pm_data, casting="no")
-
-        pixmap = QPixmap.fromImage(self.img)
-        self.setPixmap(QPixmap(pixmap))
-
-    def mouseMoveEvent(self, event):
-        self.mousePos = (event.x(), event.y())
-        self.label.setText('Col: %d \nRow: %d' % self.mousePos)
-
-    # def wheelEvent(self, event):
-
-
-class Graph(FigureCanvas):
-
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = fig.add_subplot(111)
-        self.axes.grid(True)
-
-        FigureCanvas.__init__(self, fig)
-        self.setParent(parent)
-
-        FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
-        # self.plotRow()
-
-    def plot(self, data=None):
-        if data is None:
-            data = [random.random() for i in range(1024)]
-
-        ax = self.figure.add_subplot(111)
-        ax.plot(data, 'r-')
-        self.draw()
