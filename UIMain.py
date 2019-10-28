@@ -1,18 +1,12 @@
 from PyQt5.QtWidgets import (QWidget, QMenu, QVBoxLayout, QHBoxLayout, QFrame, QSplitter, QDesktopWidget,
                              QPushButton, QComboBox, QGroupBox, QGridLayout, QLabel, QSizePolicy,
                              QMessageBox)
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QImage, QPixmap, qRgb
-
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-import matplotlib.image as mpimg
 
 import pyqtgraph as pg
 
 import numpy as np
-import random
-
 
 class UI(QWidget):
 
@@ -128,11 +122,24 @@ class UI(QWidget):
         # --- CCD Frame Layout ---
 
         self.CCDFrame = self.ccd_frame_widget()
-        # self.CCDFrame.setXRange(0, 1024, padding=0)
-        self.CCDRow = self.ccd_graph_widget()
-        self.CCDRow.setLabels(left="Intensity", bottom="nm")
-        self.CCDCol = self.ccd_graph_widget()
-        self.CCDCol.setLabels(left="row", bottom="Intensity")
+        self.image = pg.ImageItem()
+        self.CCDFrame.addItem(self.image)
+        self.vLine = self.cross_hair(a='v')
+        self.hLine = self.cross_hair(a='h')
+        self.CCDFrame.addItem(self.vLine)
+        self.CCDFrame.addItem(self.hLine)
+
+        self.CCDRow = self.ccd_graph_widget(w='row')
+        self.rowCurve = self.CCDRow.plot(pen='y')
+        self.rowGraphCursor = self.cross_cursor()
+        self.cursorPosLbl = pg.TextItem(text="X = 0, Y = 0", anchor=(-5, -1), color=pg.mkColor("#99999988"))
+        self.cursorPosLbl.setParentItem(self.CCDRow.plotItem)
+        self.CCDRow.addItem(self.rowGraphCursor)
+
+        self.CCDCol = self.ccd_graph_widget(w='col')
+        self.colCurve = self.CCDCol.plot(pen='y')
+        self.colGraphCursor = self.cross_cursor()
+        self.CCDCol.addItem(self.colGraphCursor)
 
         ccd_lay = QGridLayout(topright_frame)
         ccd_lay.setRowStretch(0, 2)
@@ -247,20 +254,14 @@ class UI(QWidget):
         cam_settings_lay.addWidget(cam_vshift_group, 0, Qt.AlignCenter)
 
     def ccd_frame_widget(self):
-        framedata = np.random.randint(0, 80, (255, 1024), dtype=np.uint8)
-        framedata2 = np.random.randint(0, 250, (255, 1024), dtype=np.uint8)
-
         bg_color = pg.mkColor('#29353D')
         pg.setConfigOptions(background=bg_color)
         pg.setConfigOptions(imageAxisOrder='row-major')
 
         frame = pg.ImageView()
-        img = pg.ImageItem(framedata, autoLevels=False)
-        frame.addItem(img)
-        # frame.autoRange()
+        frame.getView().setLimits(xMin=0, xMax=1025, yMin=0, yMax=256)
 
         size_policy = QSizePolicy()
-        size_policy.setHeightForWidth(True)
         size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
         size_policy.setVerticalPolicy(QSizePolicy.Expanding)
         frame.setSizePolicy(size_policy)
@@ -269,27 +270,57 @@ class UI(QWidget):
         frame.ui.roiBtn.hide()
         frame.ui.menuBtn.hide()
 
-        # cross hair
-        pen_color = pg.mkColor('#C8C86477')
-        c_pen = pg.mkPen(color=pen_color, width=1)
-        v_line = pg.InfiniteLine(angle=90, pen=c_pen, movable=True)
-        h_line = pg.InfiniteLine(angle=0, pen=c_pen, movable=True)
-        frame.addItem(v_line, ignoreBounds=True)
-        frame.addItem(h_line, ignoreBounds=True)
-
         return frame
 
-    def ccd_graph_widget(self):
+    def ccd_graph_widget(self, w='row'):
         bg_color = pg.mkColor('#29353D')
         pg.setConfigOptions(background=bg_color)
 
         graph = pg.PlotWidget()
+        graph.showGrid(x=True, y=True)
         graph.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        graph.setMouseTracking(True)
 
-        cross_arrow = pg.GraphicsObject()
-        graph.addItem(cross_arrow)
+
+        if w == 'row':
+            graph.setLabels(left='Intensity', bottom='Wavelength (nm)')
+            graph.setYRange(0, 40000)
+            graph.setXRange(0, 1024)
+            graph.setLimits(xMin=0, xMax=1024)
+            graph.plotItem.setContentsMargins(0, 20, 20, 0)
+            graph.plotItem.showAxis('top', True)
+            graph.plotItem.showAxis('right', True)
+            graph.plotItem.getAxis('top').setStyle(showValues=False)
+            graph.plotItem.getAxis('right').setStyle(showValues=False)
+        else:
+            # graph.setLabels(right='Row')
+            graph.setYRange(0, 255)
+            graph.setLimits(yMin=0, yMax=255)
+            graph.plotItem.setContentsMargins(10, 10, 0, 0)
+            graph.plotItem.showAxis('top', True)
+            graph.plotItem.showAxis('right', True)
+            graph.plotItem.getAxis('top').setStyle(showValues=False)
+            graph.plotItem.getAxis('left').setStyle(showValues=False)
 
         return graph
+
+    def cross_hair(self, a='h'):
+        # cross hair
+        pen = pg.mkPen(color=pg.mkColor('#C8C86466'), width=1)
+        hover_pen = pg.mkPen(color=pg.mkColor('#FF000077'), width=1)
+        if a == 'h':
+            line = pg.InfiniteLine(pos=10, angle=0, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 254.5))
+        else:
+            line = pg.InfiniteLine(pos=10, angle=90, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 1234.5))
+
+        return line
+
+    def cross_cursor(self):
+        pen_color = pg.mkColor('#C8C86477')
+        c_pen = pg.mkPen(color=pen_color, width=1)
+        cursor_obj = CrossCursor(pen=c_pen)
+
+        return cursor_obj
 
     def center_window(self, window):
         qr = window.frameGeometry()
@@ -319,3 +350,46 @@ Oleksandr Stanovyi, astanovyi@gmail.com
 
 © Copyright 2019"""
                           )
+
+
+# Create a subclass of GraphicsObject.
+class CrossCursor(pg.InfiniteLine):
+    def __init__(self, size=30, pos=None, pen=None, bounds=None, label=None, labelOpts=None, name=None):
+        pg.InfiniteLine.__init__(self, pos, 0, pen, False, bounds, None, label, labelOpts, name)
+
+        # self.vb = vb
+        self.cursorSize = size
+
+    def boundingRect(self):
+        if self._boundingRect is None:
+            # br = UIGraphicsItem.boundingRect(self)
+            br = self.viewRect()
+            if br is None:
+                return QRectF()
+
+            # get vertical pixel length
+            self.pxv = self.pixelLength(direction=pg.Point(0, 1), ortho=False)
+            if self.pxv is None:
+                self.pxv = 0
+            # get horizontal pixel length
+            self.pxh = self.pixelLength(direction=pg.Point(1, 0), ortho=False)
+            if self.pxh is None:
+                self.pxh = 0
+
+            br = br.normalized()
+            self._boundingRect = br
+
+        return self._boundingRect
+
+    def paint(self, p, *args):
+        p.setPen(self.currentPen)
+
+        x = self.getXPos()
+        y = self.getYPos()
+        # print((x, y))
+
+        h = self.cursorSize * self.pxv
+        w = self.cursorSize * self.pxh
+
+        p.drawLine(QPointF(x, y - h), QPointF(x, y + h))
+        p.drawLine(QPointF(x - w, y), QPointF(x + w, y))

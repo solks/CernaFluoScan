@@ -5,6 +5,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow)
 from UIMain import UI
 from UActions import *
 
+import time
+
 
 class App(QMainWindow):
 
@@ -14,7 +16,7 @@ class App(QMainWindow):
         self.ui = UI(self)
         self.actions = UActions(self.ui)
 
-        # self.setStyleSheet()
+        self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 
         signal.signal(signal.SIGINT, self.signal_handler)
 
@@ -29,8 +31,6 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     aw = App()
-
-    app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 
     aw.show()
     sys.exit(app.exec_())
