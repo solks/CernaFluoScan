@@ -1,0 +1,31 @@
+{
+    "Andor": {
+        "readMode": 0,
+        "trigMode": 0,
+        "vSpeed": 0,
+        "ADCRate": 0,
+        "acqMode": 0,
+        "kLength": 3,
+        "FPI": 2,
+        "clkVoltage": 0,
+        "exposure": 2,
+        "gain": 0,
+        "kTime": 0
+    },
+    "frameSet": {
+        "row": 137,
+        "y-axis": 0,
+        "binningAvg": false,
+        "binning": 1,
+        "x-axis": 0,
+        "column": 620
+    },
+    "MDR-3": {
+        "grating-pos": 500
+    },
+    "stagePos": {
+        "z": 50,
+        "y": 5,
+        "x": 400
+    }
+}

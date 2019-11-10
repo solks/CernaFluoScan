@@ -1,12 +1,10 @@
-from PyQt5.QtWidgets import (QWidget, QMenu, QVBoxLayout, QHBoxLayout, QFrame, QSplitter, QDesktopWidget,
-                             QPushButton, QComboBox, QGroupBox, QGridLayout, QLabel, QSizePolicy,
-                             QMessageBox)
+from PyQt5.QtWidgets import (QWidget, QMenu, QFrame, QSplitter, QDesktopWidget, QSizePolicy, QMessageBox,
+                             QPushButton, QLabel, QComboBox, QSpinBox, QCheckBox, QRadioButton, QButtonGroup, QGroupBox,
+                             QTableWidget, QTableWidgetItem, QVBoxLayout, QHBoxLayout, QGridLayout)
 from PyQt5.QtCore import Qt, QRectF, QLineF, QPointF
-from PyQt5.QtGui import QImage, QPixmap, qRgb
 
 import pyqtgraph as pg
 
-import numpy as np
 
 class UI(QWidget):
 
@@ -42,8 +40,6 @@ class UI(QWidget):
         self.fileMenu.addAction('&Quit', self.file_quit, Qt.CTRL + Qt.Key_Q)
         self.helpMenu.addAction('&About', self.about)
 
-        main_lay = QVBoxLayout(self.mainWidget)
-
         topleft_frame = QFrame(self.mainWidget)
         topleft_frame.setFrameShape(QFrame.StyledPanel)
 
@@ -67,15 +63,10 @@ class UI(QWidget):
         splitter2.setStretchFactor(0, 1)
         splitter2.setStretchFactor(1, 0)
 
+        main_lay = QVBoxLayout(self.mainWidget)
         main_lay.addWidget(splitter2)
 
         # --- Actions frame ---
-
-        action_btns_lay = QHBoxLayout(bottom_frame)
-        action_btns_lay.setSpacing(50)
-
-        stage_pos_group = QGroupBox('Stage position')
-        stage_pos_group.setAlignment(Qt.AlignCenter)
 
         self.x_up = QPushButton('X+')
         self.x_down = QPushButton('X-')
@@ -90,12 +81,30 @@ class UI(QWidget):
         step_lbl = QLabel('Step size: ', self)
         self.distance_lbl = QLabel('Distance: 0.05um', self)
 
-        stage_pos_lay = QGridLayout()
-        stage_pos_lay.setColumnStretch(1, 1)
-        stage_pos_lay.setColumnStretch(2, 1)
-        stage_pos_lay.setColumnStretch(3, 1)
-        stage_pos_lay.setColumnStretch(4, 1)
+        self.x_pos = QTableWidgetItem()
+        self.x_pos.setTextAlignment(Qt.AlignCenter)
+        self.y_pos = QTableWidgetItem()
+        self.y_pos.setTextAlignment(Qt.AlignCenter)
+        self.z_pos = QTableWidgetItem()
+        self.z_pos.setTextAlignment(Qt.AlignCenter)
 
+        self.acquire_btn = QPushButton('Acquire')
+        self.acquire_btn.setFixedSize(120, 60)
+
+        stage_coordinates = QTableWidget(3, 1)
+        stage_coordinates.setMaximumWidth(118)
+        stage_coordinates.setMaximumHeight(119)
+        stage_coordinates.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        stage_coordinates.setStyleSheet("border: 0")
+        stage_coordinates.setHorizontalHeaderLabels(['Position'])
+        stage_coordinates.setVerticalHeaderLabels(['X', 'Y', 'Z'])
+        stage_coordinates.setItem(0, 0, self.x_pos)
+        stage_coordinates.setItem(1, 0, self.y_pos)
+        stage_coordinates.setItem(2, 0, self.z_pos)
+
+        stage_pos_group = QGroupBox('Stage position')
+        stage_pos_group.setAlignment(Qt.AlignCenter)
+        stage_pos_lay = QGridLayout()
         stage_pos_lay.addWidget(self.x_up, 1, 2)
         stage_pos_lay.addWidget(self.x_down, 1, 0)
         stage_pos_lay.addWidget(self.y_up, 0, 1)
@@ -108,14 +117,14 @@ class UI(QWidget):
         stage_pos_lay.addWidget(self.step_val, 3, 1)
         stage_pos_lay.addWidget(step_lbl, 3, 0)
         stage_pos_lay.addWidget(self.distance_lbl, 3, 2, 1, 2)
+        stage_pos_lay.setColumnMinimumWidth(4, 20)
+        stage_pos_lay.addWidget(stage_coordinates, 0, 5, 4, 1)
         stage_pos_group.setLayout(stage_pos_lay)
 
-        self.acquire_btn = QPushButton('Acquire')
-        self.acquire_btn.setFixedSize(120, 60)
-
+        action_btns_lay = QHBoxLayout(bottom_frame)
+        action_btns_lay.setSpacing(50)
         action_btns_lay.addStretch(1)
         action_btns_lay.addWidget(stage_pos_group, 0, Qt.AlignLeft)
-        # action_btns_lay.addStretch(1)
         action_btns_lay.addWidget(self.acquire_btn, 0, Qt.AlignLeft)
         action_btns_lay.addStretch(1)
 
@@ -129,17 +138,79 @@ class UI(QWidget):
         self.CCDFrame.addItem(self.vLine)
         self.CCDFrame.addItem(self.hLine)
 
-        self.CCDRow = self.ccd_graph_widget(w='row')
-        self.rowCurve = self.CCDRow.plot(pen='y')
-        self.rowGraphCursor = self.cross_cursor()
+        self.spectrum = self.ccd_graph_widget(w='row')
+        self.spectrumCurve = self.spectrum.plot(pen='y')
+        self.spectrumCursor = self.cross_cursor()
         self.cursorPosLbl = pg.TextItem(text="X = 0, Y = 0", anchor=(-5, -1), color=pg.mkColor("#99999988"))
-        self.cursorPosLbl.setParentItem(self.CCDRow.plotItem)
-        self.CCDRow.addItem(self.rowGraphCursor)
+        self.cursorPosLbl.setParentItem(self.spectrum.plotItem)
+        self.spectrum.addItem(self.spectrumCursor)
 
-        self.CCDCol = self.ccd_graph_widget(w='col')
-        self.colCurve = self.CCDCol.plot(pen='y')
-        self.colGraphCursor = self.cross_cursor()
-        self.CCDCol.addItem(self.colGraphCursor)
+        self.frameSection = self.ccd_graph_widget(w='col')
+        self.frameSectionCurve = self.frameSection.plot(pen='y')
+        self.frameSectionCursor = self.cross_cursor()
+        self.frameSection.addItem(self.frameSectionCursor)
+
+        self.frameRowSelect = QSpinBox(self)
+        self.frameRowSelect.setRange(1, 255)
+        self.frameColSelect = QSpinBox(self)
+        self.frameColSelect.setRange(1, 1024)
+
+        y_radio0 = QRadioButton('Counts')
+        y_radio0.setChecked(True)
+        y_radio1 = QRadioButton('Counts norm.')
+        self.YUnits = QButtonGroup(self)
+        self.YUnits.addButton(y_radio0, id=0)
+        self.YUnits.addButton(y_radio1, id=1)
+
+        x_radio0 = QRadioButton('nm')
+        x_radio0.setChecked(True)
+        x_radio1 = QRadioButton('eV')
+        x_radio2 = QRadioButton('pixel number')
+        self.XUnits = QButtonGroup(self)
+        self.XUnits.addButton(x_radio0, id=0)
+        self.XUnits.addButton(x_radio1, id=1)
+        self.XUnits.addButton(x_radio2, id=2)
+        self.XUnits.button(0).setChecked(True)
+
+
+        self.rowBinning = QSpinBox(self)
+        self.rowBinning.setRange(1, 255)
+        self.avgBinning = QCheckBox('Average value')
+        row_binning_lbl = QLabel('Binning', self)
+
+        row_select_group = QGroupBox('Row/Column')
+        row_select_group.setAlignment(Qt.AlignCenter)
+        row_select_lay = QHBoxLayout(row_select_group)
+        row_select_lay.addWidget(self.frameRowSelect)
+        row_select_lay.addWidget(self.frameColSelect)
+
+        y_units_group = QGroupBox("Y-axis")
+        y_units_group.setAlignment(Qt.AlignCenter)
+        y_units_lay = QVBoxLayout(y_units_group)
+        y_units_lay.addWidget(y_radio0)
+        y_units_lay.addWidget(y_radio1)
+
+        x_units_group = QGroupBox("X-axis")
+        x_units_group.setAlignment(Qt.AlignCenter)
+        x_units_lay = QVBoxLayout(x_units_group)
+        x_units_lay.addWidget(x_radio0)
+        x_units_lay.addWidget(x_radio1)
+        x_units_lay.addWidget(x_radio2)
+
+        row_binning_group = QGroupBox()
+        row_binning_group.setAlignment(Qt.AlignCenter)
+        row_binning_lay = QGridLayout(row_binning_group)
+        row_binning_lay.addWidget(row_binning_lbl, 0, 0)
+        row_binning_lay.addWidget(self.rowBinning, 0, 1)
+        row_binning_lay.addWidget(self.avgBinning, 1, 0, 1, 2)
+
+        frame_param = QFrame()
+        frame_param_lay = QVBoxLayout(frame_param)
+        frame_param_lay.setSpacing(0)
+        frame_param_lay.addWidget(row_select_group)
+        frame_param_lay.addWidget(y_units_group)
+        frame_param_lay.addWidget(x_units_group)
+        frame_param_lay.addWidget(row_binning_group)
 
         ccd_lay = QGridLayout(topright_frame)
         ccd_lay.setRowStretch(0, 2)
@@ -147,8 +218,9 @@ class UI(QWidget):
         ccd_lay.setColumnStretch(0, 1)
         ccd_lay.setColumnStretch(1, 6)
         ccd_lay.addWidget(self.CCDFrame, 0, 1)
-        ccd_lay.addWidget(self.CCDRow, 1, 1)
-        ccd_lay.addWidget(self.CCDCol, 0, 0)
+        ccd_lay.addWidget(self.spectrum, 1, 1)
+        ccd_lay.addWidget(self.frameSection, 0, 0)
+        ccd_lay.addWidget(frame_param, 1, 0)
 
         # --- Andor Camera Settings ---
 
@@ -200,22 +272,17 @@ class UI(QWidget):
 
         cam_mode_group = QGroupBox("Mode")
         cam_mode_group.setAlignment(Qt.AlignCenter)
-        cam_mode_lay = QGridLayout()
-        cam_mode_lay.setColumnStretch(0, 1)
-        cam_mode_lay.setColumnStretch(1, 1)
+        cam_mode_lay = QGridLayout(cam_mode_group)
         cam_mode_lay.addWidget(acq_mode_lbl, 0, 0)
         cam_mode_lay.addWidget(self.acquisitionMode, 0, 1)
         cam_mode_lay.addWidget(trig_mode_lbl, 1, 0)
         cam_mode_lay.addWidget(self.triggeringMode, 1, 1)
         cam_mode_lay.addWidget(read_mode_lbl, 2, 0)
         cam_mode_lay.addWidget(self.readoutMode, 2, 1)
-        cam_mode_group.setLayout(cam_mode_lay)
 
         cam_timing_group = QGroupBox("Timings")
         cam_timing_group.setAlignment(Qt.AlignCenter)
-        cam_timing_lay = QGridLayout()
-        cam_timing_lay.setColumnStretch(0, 1)
-        cam_timing_lay.setColumnStretch(1, 1)
+        cam_timing_lay = QGridLayout(cam_timing_group)
         cam_timing_lay.addWidget(exp_time_lbl, 0, 0)
         cam_timing_lay.addWidget(self.exposureTime, 0, 1)
         cam_timing_lay.addWidget(fpi_lbl, 1, 0)
@@ -224,29 +291,22 @@ class UI(QWidget):
         cam_timing_lay.addWidget(self.kineticLength, 2, 1)
         cam_timing_lay.addWidget(kinetic_time_lbl, 3, 0)
         cam_timing_lay.addWidget(self.kineticTime, 3, 1)
-        cam_timing_group.setLayout(cam_timing_lay)
 
         cam_vshift_group = QGroupBox("Vertical Pixel Shift")
         cam_vshift_group.setAlignment(Qt.AlignCenter)
-        cam_vshift_lay = QGridLayout()
-        cam_vshift_lay.setColumnStretch(0, 1)
-        cam_vshift_lay.setColumnStretch(1, 1)
+        cam_vshift_lay = QGridLayout(cam_vshift_group)
         cam_vshift_lay.addWidget(vshift_speed_lbl, 0, 0)
         cam_vshift_lay.addWidget(self.vShiftSpeed, 0, 1)
         cam_vshift_lay.addWidget(vclk_volt_lbl, 1, 0)
         cam_vshift_lay.addWidget(self.vClkVoltage, 1, 1)
-        cam_vshift_group.setLayout(cam_vshift_lay)
 
         cam_hshift_group = QGroupBox("Horizontal Pixel Shift")
         cam_hshift_group.setAlignment(Qt.AlignCenter)
-        cam_hshift_lay = QGridLayout()
-        cam_hshift_lay.setColumnStretch(0, 1)
-        cam_hshift_lay.setColumnStretch(1, 1)
+        cam_hshift_lay = QGridLayout(cam_hshift_group)
         cam_hshift_lay.addWidget(readout_rate_lbl, 0, 0)
         cam_hshift_lay.addWidget(self.readoutRate, 0, 1)
         cam_hshift_lay.addWidget(preamp_gain_lbl, 1, 0)
         cam_hshift_lay.addWidget(self.preAmpGain, 1, 1)
-        cam_hshift_group.setLayout(cam_hshift_lay)
 
         cam_settings_lay.addWidget(cam_timing_group, 0, Qt.AlignCenter)
         cam_settings_lay.addWidget(cam_mode_group, 0, Qt.AlignCenter)
@@ -283,24 +343,25 @@ class UI(QWidget):
 
 
         if w == 'row':
-            graph.setLabels(left='Intensity', bottom='Wavelength (nm)')
+            graph.setLabels(left='Intensity')
             graph.setYRange(0, 40000)
-            graph.setXRange(0, 1024)
-            graph.setLimits(xMin=0, xMax=1024)
             graph.plotItem.setContentsMargins(0, 20, 20, 0)
             graph.plotItem.showAxis('top', True)
             graph.plotItem.showAxis('right', True)
             graph.plotItem.getAxis('top').setStyle(showValues=False)
             graph.plotItem.getAxis('right').setStyle(showValues=False)
+
         else:
             # graph.setLabels(right='Row')
             graph.setYRange(0, 255)
             graph.setLimits(yMin=0, yMax=255)
-            graph.plotItem.setContentsMargins(10, 10, 0, 0)
+            graph.plotItem.setContentsMargins(10, 8, 0, 10)
             graph.plotItem.showAxis('top', True)
             graph.plotItem.showAxis('right', True)
             graph.plotItem.getAxis('top').setStyle(showValues=False)
             graph.plotItem.getAxis('left').setStyle(showValues=False)
+            graph.plotItem.getAxis('bottom').setStyle(showValues=False)
+            graph.plotItem.getViewBox().invertX(True)
 
         return graph
 
@@ -309,9 +370,9 @@ class UI(QWidget):
         pen = pg.mkPen(color=pg.mkColor('#C8C86466'), width=1)
         hover_pen = pg.mkPen(color=pg.mkColor('#FF000077'), width=1)
         if a == 'h':
-            line = pg.InfiniteLine(pos=10, angle=0, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 254.5))
+            line = pg.InfiniteLine(angle=0, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 254.5))
         else:
-            line = pg.InfiniteLine(pos=10, angle=90, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 1234.5))
+            line = pg.InfiniteLine(angle=90, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 1234.5))
 
         return line
 
@@ -329,24 +390,18 @@ class UI(QWidget):
         window.move(qr.topLeft())
 
     def file_quit(self):
-        self.main_window.close()
+        self.mainWidget.window().close()
 
-        # reply = QMessageBox.question(self, 'Message',
-        #     "Are you sure to quit?", QMessageBox.Yes |
-        #     QMessageBox.No, QMessageBox.No)
-        #
-        # if reply == QMessageBox.Yes:
-        #     event.accept()
-        # else:
-        #     event.ignore()
-
-    def about(self, window):
-        QMessageBox.about(window, "About",
-                          """Cerna Fluorescence Scan Microscope & MDR-3 
+    def about(self):
+        QMessageBox.about(self.mainWidget, "About",
+"""Cerna Fluorescence Scan Microscope & MDR-3 
 control software.
-
+            
 Developers: 
 Oleksandr Stanovyi, astanovyi@gmail.com
+
+Source code:
+https://github.com/solks/CernaFluoScan
 
 © Copyright 2019"""
                           )

@@ -1,6 +1,6 @@
 import sys
 import qdarkstyle
-from PyQt5.QtWidgets import (QApplication, QMainWindow)
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QMessageBox)
 
 from UIMain import UI
 from UActions import *
@@ -10,21 +10,23 @@ import time
 
 class App(QMainWindow):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.ui = UI(self)
         self.actions = UActions(self.ui)
 
         self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 
-        signal.signal(signal.SIGINT, self.signal_handler)
-
     def closeEvent(self, event):
-        self.close()
+        reply = QMessageBox.question(self, 'Message', "Are you sure to quit?", QMessageBox.Yes |
+                                     QMessageBox.No, QMessageBox.No)
 
-    def signal_handler(self, sig, frame):
-        self.actions.shut_down()
+        if reply == QMessageBox.Yes:
+            self.actions.shut_down()
+            event.accept()
+        else:
+            event.ignore()
 
 
 if __name__ == '__main__':
