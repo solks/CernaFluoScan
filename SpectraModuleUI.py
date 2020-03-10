@@ -1,52 +1,31 @@
-from PyQt5.QtWidgets import (QWidget, QMenu, QFrame, QSplitter, QDesktopWidget, QSizePolicy, QMessageBox,
-                             QPushButton, QLabel, QComboBox, QSpinBox, QCheckBox, QRadioButton, QButtonGroup, QGroupBox,
-                             QTableWidget, QTableWidgetItem, QVBoxLayout, QHBoxLayout, QGridLayout)
+from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy,
+                             QPushButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QRadioButton,
+                             QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
+                             QHBoxLayout, QGridLayout)
 from PyQt5.QtCore import Qt, QRectF, QLineF, QPointF
+from PyQt5.QtGui import QIntValidator
 
 import pyqtgraph as pg
 
+from WidgetsUI import CrossCursor
 
-class UI(QWidget):
 
-    W_HEIGHT = 960
-    W_WIDTH = 1440
+class SpectraModuleUI(QWidget):
 
-    def __init__(self, main_window):
+    def __init__(self):
         super().__init__()
-
-        main_window.resize(self.W_WIDTH, self.W_HEIGHT)
-        self.center_window(main_window)
-
-        main_window.setWindowTitle('CernaFluoScan')
-        main_window.statusBar().showMessage("Cerna Fluorescence Scan Microscope control")
-
-        self.fileMenu = QMenu('&File', main_window)
-        self.helpMenu = QMenu('&Help', main_window)
-
-        main_window.menuBar().addMenu(self.fileMenu)
-        main_window.menuBar().addSeparator()
-        main_window.menuBar().addMenu(self.helpMenu)
-
-        self.mainWidget = QWidget(main_window)
-        self.mainWidget.setFocus()
-        main_window.setCentralWidget(self.mainWidget)
 
         self.ui_construct()
 
     def ui_construct(self):
-
-        # --- Main Layout ---
-
-        self.fileMenu.addAction('&Quit', self.file_quit, Qt.CTRL + Qt.Key_Q)
-        self.helpMenu.addAction('&About', self.about)
-
-        topleft_frame = QFrame(self.mainWidget)
+        # Main splitters
+        topleft_frame = QFrame(self)
         topleft_frame.setFrameShape(QFrame.StyledPanel)
 
-        topright_frame = QFrame(self.mainWidget)
+        topright_frame = QFrame(self)
         topright_frame.setFrameShape(QFrame.StyledPanel)
 
-        bottom_frame = QFrame(self.mainWidget)
+        bottom_frame = QFrame(self)
         bottom_frame.setFrameShape(QFrame.StyledPanel)
 
         splitter1 = QSplitter(Qt.Horizontal)
@@ -63,10 +42,32 @@ class UI(QWidget):
         splitter2.setStretchFactor(0, 1)
         splitter2.setStretchFactor(1, 0)
 
-        main_lay = QVBoxLayout(self.mainWidget)
+        main_lay = QVBoxLayout(self)
         main_lay.addWidget(splitter2)
 
-        # --- Actions frame ---
+        # --- Controls frame ---
+
+        self.monoGridPos = QDoubleSpinBox(self)
+        self.monoGridPos.setRange(2000.0, 10000.0)
+        self.monoGridPos.setSingleStep(0.1)
+        self.monoGridPos.setDecimals(1)
+        self.monoSetPos = QPushButton('Set')
+        self.monoSetPos.setMinimumSize(80, 30)
+        self.monoCurrentPos = QLabel('5000 Å')
+        mono_pos_lbl = QLabel('Grating position: ')
+
+        self.laserSelect = QComboBox(self)
+        self.laserSelect.addItems(['Laser 405 nm', 'Laser 450 nm', 'LED 370 nm', 'LED 430 nm'])
+        self.laserOn = QPushButton('Connect')
+        self.laserOff = QPushButton('Disconnect')
+        self.laserOn.setMinimumSize(110, 30)
+        self.laserOff.setMinimumSize(110, 30)
+        self.laserConn = QLabel('Off', self)
+        self.laserStat = QLabel('0 mW', self)
+        self.laserPower = QSlider(Qt.Vertical)
+        laser_select_lbl = QLabel('Source: ', self)
+        laser_conn_lbl = QLabel('Connection: ', self)
+        laser_stat_lbl = QLabel('Power: ', self)
 
         self.x_up = QPushButton('X+')
         self.x_down = QPushButton('X-')
@@ -78,8 +79,17 @@ class UI(QWidget):
         self.step_val = QComboBox(self)
         self.step_val.setEditable(True)
         self.step_val.addItems(['1', '2', '5', '10', '20', '50', '100', '200', '500', '1000', '2000', '5000'])
+        self.step_val.setValidator(QIntValidator(1, 10000))
         step_lbl = QLabel('Step size: ', self)
         self.distance_lbl = QLabel('Distance: 0.05um', self)
+        self.x_up.setMinimumSize(78, 30)
+        self.x_down.setMinimumSize(78, 30)
+        self.x_down.setMinimumSize(78, 30)
+        self.y_up.setMinimumSize(78, 30)
+        self.y_down.setMinimumSize(78, 30)
+        self.z_up.setMinimumSize(78, 30)
+        self.z_down.setMinimumSize(78, 30)
+        self.stop_move.setMinimumSize(78, 30)
 
         self.x_pos = QTableWidgetItem()
         self.x_pos.setTextAlignment(Qt.AlignCenter)
@@ -101,6 +111,29 @@ class UI(QWidget):
         stage_coordinates.setItem(0, 0, self.x_pos)
         stage_coordinates.setItem(1, 0, self.y_pos)
         stage_coordinates.setItem(2, 0, self.z_pos)
+
+        mono_control_group = QGroupBox('Monochromator')
+        mono_control_group.setAlignment(Qt.AlignCenter)
+        mono_control_lay = QGridLayout(mono_control_group)
+        mono_control_lay.addWidget(self.monoGridPos, 1, 0)
+        mono_control_lay.addWidget(self.monoSetPos, 1, 1)
+        mono_control_lay.addWidget(mono_pos_lbl, 2, 0)
+        mono_control_lay.addWidget(self.monoCurrentPos, 2, 1)
+        mono_control_lay.setRowMinimumHeight(0, 30)
+
+        light_source_group = QGroupBox('Light source')
+        light_source_group.setAlignment(Qt.AlignCenter)
+        light_source_lay = QGridLayout(light_source_group)
+        light_source_lay.addWidget(laser_select_lbl, 0, 0)
+        light_source_lay.addWidget(self.laserSelect, 0, 1)
+        light_source_lay.addWidget(self.laserOn, 1, 0)
+        light_source_lay.addWidget(self.laserOff, 1, 1)
+        light_source_lay.addWidget(laser_conn_lbl, 2, 0)
+        light_source_lay.addWidget(self.laserConn, 2, 1)
+        light_source_lay.addWidget(laser_stat_lbl, 3, 0)
+        light_source_lay.addWidget(self.laserStat, 3, 1)
+        light_source_lay.addWidget(self.laserPower, 0, 2, 4, 1, Qt.AlignRight)
+        light_source_lay.setColumnMinimumWidth(2, 30)
 
         stage_pos_group = QGroupBox('Stage position')
         stage_pos_group.setAlignment(Qt.AlignCenter)
@@ -124,6 +157,8 @@ class UI(QWidget):
         action_btns_lay = QHBoxLayout(bottom_frame)
         action_btns_lay.setSpacing(50)
         action_btns_lay.addStretch(1)
+        action_btns_lay.addWidget(mono_control_group, 0, Qt.AlignLeft)
+        action_btns_lay.addWidget(light_source_group, 0, Qt.AlignLeft)
         action_btns_lay.addWidget(stage_pos_group, 0, Qt.AlignLeft)
         action_btns_lay.addWidget(self.acquire_btn, 0, Qt.AlignLeft)
         action_btns_lay.addStretch(1)
@@ -171,7 +206,6 @@ class UI(QWidget):
         self.XUnits.addButton(x_radio1, id=1)
         self.XUnits.addButton(x_radio2, id=2)
         self.XUnits.button(0).setChecked(True)
-
 
         self.rowBinning = QSpinBox(self)
         self.rowBinning.setRange(1, 255)
@@ -224,41 +258,43 @@ class UI(QWidget):
 
         # --- Andor Camera Settings ---
 
+        self.exposureTime = QDoubleSpinBox(self)
+        self.exposureTime.setRange(0.01, 1000.0)
+        self.exposureTime.setDecimals(2)
+        # self.exposureTime.setStepType(QDoubleSpinBox.AdaptiveDecimalStepType)
+        exp_time_lbl = QLabel('Exposure time (sec)')
+
         self.acquisitionMode = QComboBox(self)
         self.acquisitionMode.addItems(['Single', 'Accumulate', 'Kinetic', 'Photon Count', 'Fast Kinetic'])
+        self.acquisitionMode.model().item(3).setEnabled(False)
+        self.accumulationFrames = QSpinBox(self)
+        self.accumulationFrames.setRange(1, 50)
+        self.accumulationCycle = QDoubleSpinBox(self)
+        self.accumulationCycle.setRange(0.01, 1000.0)
+        self.accumulationCycle.setSingleStep(1)
+        self.accumulationCycle.setDecimals(2)
+        self.kineticSeries = QSpinBox(self)
+        self.kineticSeries.setRange(1, 50)
+        self.kineticCycle = QDoubleSpinBox(self)
+        self.kineticCycle.setRange(0.01, 1000.0)
+        self.kineticCycle.setSingleStep(1)
+        self.kineticCycle.setDecimals(2)
+        acq_mode_lbl = QLabel('Acquisition Mode', self)
+        accum_frames_lbl = QLabel('Accumulation Frames')
+        accum_cycle_lbl = QLabel('Accumulation Cycle')
+        kinetic_series_lbl = QLabel('Kinetic Series')
+        kinetic_cycle_lbl = QLabel('Kinetic Cycle Time')
+
         self.triggeringMode = QComboBox(self)
         self.triggeringMode.addItems(['Internal', 'External', 'Fast External', 'External Start'])
+        self.triggeringMode.model().item(2).setEnabled(False)
         self.readoutMode = QComboBox(self)
-        self.readoutMode.addItems(['Image', 'Multi-Track', 'FVB'])
-        acq_mode_lbl = QLabel('Acquisition Mode', self)
+        self.readoutMode.addItems(['Image', 'Single-Track', 'Multi-Track', 'FVB'])
+        self.readoutMode.model().item(1).setEnabled(False)
+        self.readoutMode.model().item(2).setEnabled(False)
+        self.readoutMode.model().item(3).setEnabled(False)
         trig_mode_lbl = QLabel('Triggering Mode', self)
         read_mode_lbl = QLabel('Readout Mode', self)
-
-        self.exposureTime = QComboBox(self)
-        self.exposureTime.setEditable(True)
-        self.exposureTime.addItems(['0.01', '0.1', '1', '2', '5', '10', '20', '50', '100', '200', '500'])
-        self.exposureTime.setCurrentIndex(3)
-        self.framesPerImage = QComboBox(self)
-        self.framesPerImage.setEditable(True)
-        self.framesPerImage.addItems(['1', '2', '3', '5', '10', '15', '20', '30', '40', '50'])
-        self.kineticLength = QComboBox(self)
-        self.kineticLength.setEditable(True)
-        self.kineticLength.addItems(['1', '2', '3', '5', '10', '15', '20', '30', '40', '50'])
-        self.kineticLength.setCurrentIndex(3)
-        self.kineticTime = QComboBox(self)
-        self.kineticTime.setEditable(True)
-        self.kineticTime.addItems(['0.76607'])
-        exp_time_lbl = QLabel('Exposure (sec)')
-        fpi_lbl = QLabel('Frames per Image')
-        kinetic_len_lbl = QLabel('Kinetic Series')
-        kinetic_time_lbl = QLabel('Kinetic Time (sec)')
-
-        self.vShiftSpeed = QComboBox(self)
-        self.vShiftSpeed.addItems(['12.9', '25.7', '51.3', '76.9', '102.5', '128.1', '153.7', '179.3'])
-        self.vClkVoltage = QComboBox(self)
-        self.vClkVoltage.addItems(['Normal', '+1'])
-        vshift_speed_lbl = QLabel('Shift speed (usec)')
-        vclk_volt_lbl = QLabel('Clock Voltage Amp')
 
         self.readoutRate = QComboBox(self)
         self.readoutRate.addItems(['50kHz at 16-bit', '1MHz at 16-bit', '3MHz at 16-bit'])
@@ -267,51 +303,57 @@ class UI(QWidget):
         readout_rate_lbl = QLabel('Readout Rate')
         preamp_gain_lbl = QLabel('Pre-Amp Gain')
 
+        self.VSSpeed = QComboBox(self)
+        self.VSSpeed.addItems(['12.9', '25.7', '51.3', '76.9', '102.5', '128.1', '153.7', '179.3'])
+        self.VSAVoltage = QComboBox(self)
+        self.VSAVoltage.addItems(['Normal', '+1'])
+        self.VSAVoltage.model().item(1).setEnabled(False)
+        vs_speed_lbl = QLabel('VShift speed (usec)')
+        vsa_voltage_lbl = QLabel('VShift Amp Voltage')
+
         cam_settings_lay = QVBoxLayout(topleft_frame)
-        cam_settings_lay.setSpacing(20)
+        cam_settings_lay.setSpacing(10)
+
+        cam_exposure_group = QGroupBox("Exposition")
+        cam_exposure_lay = QGridLayout(cam_exposure_group)
+        cam_exposure_lay.addWidget(exp_time_lbl, 0, 0)
+        cam_exposure_lay.addWidget(self.exposureTime, 0, 1)
+
+        cam_timing_group = QGroupBox("Acquisition timings")
+        cam_timing_lay = QGridLayout(cam_timing_group)
+        cam_timing_lay.addWidget(acq_mode_lbl, 0, 0)
+        cam_timing_lay.addWidget(self.acquisitionMode, 0, 1)
+        cam_timing_lay.addWidget(accum_frames_lbl, 1, 0)
+        cam_timing_lay.addWidget(self.accumulationFrames, 1, 1)
+        cam_timing_lay.addWidget(accum_cycle_lbl, 2, 0)
+        cam_timing_lay.addWidget(self.accumulationCycle, 2, 1)
+        cam_timing_lay.addWidget(kinetic_series_lbl, 3, 0)
+        cam_timing_lay.addWidget(self.kineticSeries, 3, 1)
+        cam_timing_lay.addWidget(kinetic_cycle_lbl, 4, 0)
+        cam_timing_lay.addWidget(self.kineticCycle, 4, 1)
 
         cam_mode_group = QGroupBox("Mode")
-        cam_mode_group.setAlignment(Qt.AlignCenter)
         cam_mode_lay = QGridLayout(cam_mode_group)
-        cam_mode_lay.addWidget(acq_mode_lbl, 0, 0)
-        cam_mode_lay.addWidget(self.acquisitionMode, 0, 1)
-        cam_mode_lay.addWidget(trig_mode_lbl, 1, 0)
-        cam_mode_lay.addWidget(self.triggeringMode, 1, 1)
-        cam_mode_lay.addWidget(read_mode_lbl, 2, 0)
-        cam_mode_lay.addWidget(self.readoutMode, 2, 1)
+        cam_mode_lay.addWidget(trig_mode_lbl, 0, 0)
+        cam_mode_lay.addWidget(self.triggeringMode, 0, 1)
+        cam_mode_lay.addWidget(read_mode_lbl, 1, 0)
+        cam_mode_lay.addWidget(self.readoutMode, 1, 1)
 
-        cam_timing_group = QGroupBox("Timings")
-        cam_timing_group.setAlignment(Qt.AlignCenter)
-        cam_timing_lay = QGridLayout(cam_timing_group)
-        cam_timing_lay.addWidget(exp_time_lbl, 0, 0)
-        cam_timing_lay.addWidget(self.exposureTime, 0, 1)
-        cam_timing_lay.addWidget(fpi_lbl, 1, 0)
-        cam_timing_lay.addWidget(self.framesPerImage, 1, 1)
-        cam_timing_lay.addWidget(kinetic_len_lbl, 2, 0)
-        cam_timing_lay.addWidget(self.kineticLength, 2, 1)
-        cam_timing_lay.addWidget(kinetic_time_lbl, 3, 0)
-        cam_timing_lay.addWidget(self.kineticTime, 3, 1)
+        cam_readout_group = QGroupBox("Readout")
+        cam_readout_lay = QGridLayout(cam_readout_group)
+        cam_readout_lay.addWidget(readout_rate_lbl, 0, 0)
+        cam_readout_lay.addWidget(self.readoutRate, 0, 1)
+        cam_readout_lay.addWidget(preamp_gain_lbl, 1, 0)
+        cam_readout_lay.addWidget(self.preAmpGain, 1, 1)
+        cam_readout_lay.addWidget(vs_speed_lbl, 2, 0)
+        cam_readout_lay.addWidget(self.VSSpeed, 2, 1)
+        cam_readout_lay.addWidget(vsa_voltage_lbl, 3, 0)
+        cam_readout_lay.addWidget(self.VSAVoltage, 3, 1)
 
-        cam_vshift_group = QGroupBox("Vertical Pixel Shift")
-        cam_vshift_group.setAlignment(Qt.AlignCenter)
-        cam_vshift_lay = QGridLayout(cam_vshift_group)
-        cam_vshift_lay.addWidget(vshift_speed_lbl, 0, 0)
-        cam_vshift_lay.addWidget(self.vShiftSpeed, 0, 1)
-        cam_vshift_lay.addWidget(vclk_volt_lbl, 1, 0)
-        cam_vshift_lay.addWidget(self.vClkVoltage, 1, 1)
-
-        cam_hshift_group = QGroupBox("Horizontal Pixel Shift")
-        cam_hshift_group.setAlignment(Qt.AlignCenter)
-        cam_hshift_lay = QGridLayout(cam_hshift_group)
-        cam_hshift_lay.addWidget(readout_rate_lbl, 0, 0)
-        cam_hshift_lay.addWidget(self.readoutRate, 0, 1)
-        cam_hshift_lay.addWidget(preamp_gain_lbl, 1, 0)
-        cam_hshift_lay.addWidget(self.preAmpGain, 1, 1)
-
-        cam_settings_lay.addWidget(cam_timing_group, 0, Qt.AlignCenter)
-        cam_settings_lay.addWidget(cam_mode_group, 0, Qt.AlignCenter)
-        cam_settings_lay.addWidget(cam_hshift_group, 0, Qt.AlignCenter)
-        cam_settings_lay.addWidget(cam_vshift_group, 0, Qt.AlignCenter)
+        cam_settings_lay.addWidget(cam_exposure_group)
+        cam_settings_lay.addWidget(cam_timing_group)
+        cam_settings_lay.addWidget(cam_mode_group)
+        cam_settings_lay.addWidget(cam_readout_group)
 
     def ccd_frame_widget(self):
         bg_color = pg.mkColor('#29353D')
@@ -382,69 +424,3 @@ class UI(QWidget):
         cursor_obj = CrossCursor(pen=c_pen)
 
         return cursor_obj
-
-    def center_window(self, window):
-        qr = window.frameGeometry()
-        cp = QDesktopWidget().availableGeometry().center()
-        qr.moveCenter(cp)
-        window.move(qr.topLeft())
-
-    def file_quit(self):
-        self.mainWidget.window().close()
-
-    def about(self):
-        QMessageBox.about(self.mainWidget, "About",
-"""Cerna Fluorescence Scan Microscope & MDR-3 
-control software.
-            
-Developers: 
-Oleksandr Stanovyi, astanovyi@gmail.com
-
-Source code:
-https://github.com/solks/CernaFluoScan
-
-© Copyright 2019"""
-                          )
-
-
-# Create a subclass of GraphicsObject.
-class CrossCursor(pg.InfiniteLine):
-    def __init__(self, size=30, pos=None, pen=None, bounds=None, label=None, labelOpts=None, name=None):
-        pg.InfiniteLine.__init__(self, pos, 0, pen, False, bounds, None, label, labelOpts, name)
-
-        # self.vb = vb
-        self.cursorSize = size
-
-    def boundingRect(self):
-        if self._boundingRect is None:
-            # br = UIGraphicsItem.boundingRect(self)
-            br = self.viewRect()
-            if br is None:
-                return QRectF()
-
-            # get vertical pixel length
-            self.pxv = self.pixelLength(direction=pg.Point(0, 1), ortho=False)
-            if self.pxv is None:
-                self.pxv = 0
-            # get horizontal pixel length
-            self.pxh = self.pixelLength(direction=pg.Point(1, 0), ortho=False)
-            if self.pxh is None:
-                self.pxh = 0
-
-            br = br.normalized()
-            self._boundingRect = br
-
-        return self._boundingRect
-
-    def paint(self, p, *args):
-        p.setPen(self.currentPen)
-
-        x = self.getXPos()
-        y = self.getYPos()
-        # print((x, y))
-
-        h = self.cursorSize * self.pxv
-        w = self.cursorSize * self.pxh
-
-        p.drawLine(QPointF(x, y - h), QPointF(x, y + h))
-        p.drawLine(QPointF(x - w, y), QPointF(x + w, y))

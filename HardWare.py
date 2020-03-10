@@ -6,7 +6,7 @@ class HardWare(object):
 
     STAGE_STEP_DST = 0.05  # in um
 
-    def __init__(self):
+    def _init__(self):
         stages = list(discover_stages())
         # self.motX = stages[0]
         for s in stages:

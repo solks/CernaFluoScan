@@ -1,31 +1,40 @@
 {
+    "Laser": {
+        "source-id": 0
+    },
     "Andor": {
-        "readMode": 0,
         "trigMode": 0,
-        "vSpeed": 0,
+        "temperature": -20,
+        "cooler": 1,
         "ADCRate": 0,
-        "acqMode": 0,
-        "kLength": 3,
-        "FPI": 2,
-        "clkVoltage": 0,
-        "exposure": 2,
+        "exposure": 2.0,
+        "VSSpeed": 0,
+        "AcqMode": {
+            "kCycle": 20.0,
+            "kSeries": 3,
+            "mode": 0,
+            "accumCycle": 5.0,
+            "accumFrames": 2
+        },
         "gain": 0,
-        "kTime": 0
+        "readMode": 0,
+        "VSAVoltage": 0
+    },
+    "stagePos": {
+        "step": 100,
+        "x": 0,
+        "z": 0,
+        "y": 0
     },
     "frameSet": {
-        "row": 137,
-        "y-axis": 0,
         "binningAvg": false,
+        "y-axis": 0,
+        "row": 10,
+        "x-axis": 2,
         "binning": 1,
-        "x-axis": 0,
-        "column": 620
+        "column": 10
     },
     "MDR-3": {
         "grating-pos": 500
-    },
-    "stagePos": {
-        "z": 50,
-        "y": 5,
-        "x": 400
     }
 }

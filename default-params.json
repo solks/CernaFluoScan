@@ -2,7 +2,8 @@
     "stagePos": {
         "x": 0,
         "y": 0,
-        "z": 0
+        "z": 0,
+        "step": 100
     },
     "frameSet": {
         "row": 10,
@@ -13,19 +14,27 @@
         "y-axis": 0
     },
     "Andor": {
-        "acqMode": 0,
+        "AcqMode": {
+            "mode": 1,
+            "accumFrames": 2,
+            "accumCycle": 5.0,
+            "kSeries": 3,
+            "kCycle": 20.0
+        },
+        "exposure": 2.00,
         "trigMode": 0,
         "readMode": 0,
-        "exposure": 2,
-        "FPI": 2,
-        "kLength": 3,
-        "kTime": 0,
-        "vSpeed": 0,
-        "clkVoltage": 0,
+        "VSSpeed": 0,
+        "VSAVoltage": 0,
         "ADCRate": 0,
-        "gain": 0
+        "gain": 0,
+        "temperature": -20,
+        "cooler": 1
     },
     "MDR-3": {
         "grating-pos": 500
+    },
+    "Laser": {
+        "source-id": 0
     }
 }
