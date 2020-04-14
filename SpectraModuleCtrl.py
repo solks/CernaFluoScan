@@ -81,7 +81,6 @@ class SpectraModuleCtrl(object):
         mf.laserSelect.setCurrentIndex(self.paramSet['Laser']['source-id'])
 
         # Andor parameter set
-        acq_mode = andor_p['AcqMode']['mode']
         mf.exposureTime.setValue(andor_p['exposure'])
         mf.acquisitionMode.setCurrentIndex(andor_p['AcqMode']['mode'])
         self.mode_prm_enable(andor_p['AcqMode']['mode'])
