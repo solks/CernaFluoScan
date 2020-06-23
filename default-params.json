@@ -1,40 +1,112 @@
 {
-    "stagePos": {
-        "x": 0,
-        "y": 0,
-        "z": 0,
-        "step": 100
+  "windowSize": {
+    "width": 1440,
+    "height": 960
+  },
+  "stagePos": {
+    "x": 0,
+    "y": 0,
+    "z": 0,
+    "step": 100
+  },
+  "frameSet": {
+    "row": 10,
+    "column": 10,
+    "binning": 1,
+    "binningAvg": false,
+    "x-axis": 2,
+    "y-axis": 0
+  },
+  "Andor": {
+    "AcqMode": {
+      "mode": 1,
+      "accumFrames": 2,
+      "accumCycle": 5.0,
+      "kSeries": 3,
+      "kCycle": 20.0
     },
-    "frameSet": {
-        "row": 10,
-        "column": 10,
-        "binning": 1,
-        "binningAvg": false,
-        "x-axis": 2,
-        "y-axis": 0
+    "exposure": 2.00,
+    "trigMode": 0,
+    "readMode": 0,
+    "VSSpeed": 0,
+    "VSAVoltage": 0,
+    "ADCRate": 0,
+    "gain": 0,
+    "temperature": -20,
+    "cooler": 1
+  },
+  "MDR-3": {
+    "grating-pos": 5000,
+    "grating-select": 0
+  },
+  "Laser": {
+    "source-id": 0
+  },
+  "cam": {
+    "device": 0,
+    "exposure": 0,
+    "gain": 0,
+    "hFlip": false,
+    "vFlip": false,
+    "savePath": ""
+  },
+  "scanSet": {
+    "0": {
+      "use": 0,
+      "id": 0,
+      "count": 1,
+      "step": 1
     },
-    "Andor": {
-        "AcqMode": {
-            "mode": 1,
-            "accumFrames": 2,
-            "accumCycle": 5.0,
-            "kSeries": 3,
-            "kCycle": 20.0
-        },
-        "exposure": 2.00,
-        "trigMode": 0,
-        "readMode": 0,
-        "VSSpeed": 0,
-        "VSAVoltage": 0,
-        "ADCRate": 0,
-        "gain": 0,
-        "temperature": -20,
-        "cooler": 1
+    "1": {
+      "use": 0,
+      "id": 0,
+      "count": 1,
+      "step": 1
     },
-    "MDR-3": {
-        "grating-pos": 500
+    "2": {
+      "use": 0,
+      "id": 0,
+      "count": 1,
+      "step": 1
     },
-    "Laser": {
-        "source-id": 0
+    "3": {
+      "use": 0,
+      "id": 0,
+      "count": 1,
+      "step": 1
+    },
+    "4": {
+      "use": 0,
+      "id": 0,
+      "count": 1,
+      "step": 1
     }
+  },
+  "scanActions": {
+    "0": {
+      "use": 0,
+      "id": 0,
+      "par1": ""
+    },
+    "1": {
+      "use": 0,
+      "id": 0,
+      "par1": ""
+    },
+    "2": {
+      "use": 0,
+      "id": 0,
+      "par1": ""
+    },
+    "3": {
+      "use": 0,
+      "id": 0,
+      "par1": ""
+    },
+    "4": {
+      "use": 0,
+      "id": 0,
+      "par1": ""
+    }
+  }
 }

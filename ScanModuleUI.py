@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy, QTabWidget,
                              QPushButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QRadioButton,
                              QSlider, QButtonGroup, QGroupBox, QTableWidget, QHeaderView, QTableWidgetItem,
-                             QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QTextEdit, QProgressBar)
+                             QVBoxLayout, QHBoxLayout, QGridLayout, QLineEdit, QTextEdit, QProgressBar,
+                             QAbstractItemView)
 from PyQt5.QtCore import Qt, QDir, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
 from WidgetsUI import CTabBar
@@ -15,6 +16,31 @@ class ScanModuleUI(QWidget):
         super().__init__()
 
         self.ui_construct()
+
+    def init_parameters(self, param_set):
+        cam = param_set['cam']
+        scan_set = param_set['scanSet']
+        scan_actions = param_set['scanActions']
+
+        # Camera parameter set
+        self.vcamExposure.setSliderPosition(cam['exposure'])
+        self.vcamGain.setSliderPosition(cam['gain'])
+        self.vcamFlipH.setChecked(cam['hFlip'])
+        self.vcamFlipV.setChecked(cam['vFlip'])
+
+        # Scan parameter set
+        for i, el in enumerate(self.scanSetup):
+            si = str(i)
+            el['use'].setChecked(scan_set[si]['use'])
+            el['instrument'].setCurrentIndex(scan_set[si]['id'])
+            el['count'].setCurrentText(str(scan_set[si]['count']))
+            el['step'].setCurrentText(str(scan_set[si]['step']))
+
+        for i, el in enumerate(self.scanActions):
+            si = str(i)
+            el['use'].setChecked(scan_actions[si]['use'])
+            el['action'].setCurrentIndex(scan_actions[si]['id'])
+            el['par1'].setText(scan_actions[si]['par1'])
 
     def ui_construct(self):
         # Main splitters
@@ -59,6 +85,7 @@ class ScanModuleUI(QWidget):
         self.vcamSelect.setToolTip('Choose Camera...')
 
         self.vCamFrame = self.image_frame_widget()
+        self.vCamFrame.getView().setAspectLocked()
         self.camImage = pg.ImageItem()
         self.vCamFrame.addItem(self.camImage)
 
@@ -73,6 +100,7 @@ class ScanModuleUI(QWidget):
         self.vcamShowScan = QCheckBox('Show Scan Area')
 
         self.vcamDstPath = QLineEdit(QDir.currentPath(), self)
+        self.vcamDstPath.setReadOnly(True)
         self.vcamChooseDst = QPushButton('Choose Dir')
         self.vcamSaveImage = QPushButton('Save')
         self.vcamChooseDst.setMinimumSize(90, 30)
@@ -136,43 +164,34 @@ class ScanModuleUI(QWidget):
 
         # Map dimensions, experimental details
 
-        self.x1_dim = QTableWidgetItem('Mot X')
-        self.x1_min = QTableWidgetItem()
-        self.x1_max = QTableWidgetItem()
-        self.x2_dim = QTableWidgetItem('Mot Y')
-        self.x2_min = QTableWidgetItem()
-        self.x2_max = QTableWidgetItem()
-        self.x3_dim = QTableWidgetItem('Mot Z')
-        self.x3_min = QTableWidgetItem()
-        self.x3_max = QTableWidgetItem()
-        self.x4_dim = QTableWidgetItem('Wavelength')
-        self.x4_min = QTableWidgetItem()
-        self.x4_max = QTableWidgetItem()
-
         map_dimensions_group = QGroupBox('Scan dimensions')
-        map_dimensions = QTableWidget(4, 3)
-        map_dimensions.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        # map_dimensions.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        map_dimensions.setStyleSheet("border: 0")
-        map_dimensions.setHorizontalHeaderLabels(['Dim.', 'Min', 'Max'])
-        map_dimensions.setVerticalHeaderLabels(['X1', 'X2', 'X3', 'X4'])
-        map_dimensions.setItem(0, 0, self.x1_dim)
-        map_dimensions.setItem(0, 1, self.x1_min)
-        map_dimensions.setItem(0, 2, self.x1_max)
-        map_dimensions.setItem(1, 0, self.x2_dim)
-        map_dimensions.setItem(1, 1, self.x2_min)
-        map_dimensions.setItem(1, 2, self.x2_max)
-        map_dimensions.setItem(2, 0, self.x3_dim)
-        map_dimensions.setItem(2, 1, self.x3_min)
-        map_dimensions.setItem(2, 2, self.x3_max)
-        map_dimensions.setItem(3, 0, self.x4_dim)
-        map_dimensions.setItem(3, 1, self.x4_min)
-        map_dimensions.setItem(3, 2, self.x4_max)
+        map_dimensions_group.setEnabled(False)
+        map_dimensions_table = QTableWidget(5, 3)
+        map_dimensions_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        map_dimensions_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        map_dimensions_table.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        map_dimensions_table.setStyleSheet("border: 0")
+        map_dimensions_table.setHorizontalHeaderLabels(['Dim.', 'Min', 'Max'])
+        map_dimensions_table.setVerticalHeaderLabels(['X1', 'X2', 'X3', 'X4', 'X5'])
+
+        self.mapDimensions = []
+        for i in range(5):
+            dim_set = {
+                'dim': QTableWidgetItem(),
+                'min': QTableWidgetItem(),
+                'max': QTableWidgetItem()
+            }
+            self.mapDimensions.append(dim_set)
+
+            map_dimensions_table.setItem(i, 0, dim_set['dim'])
+            map_dimensions_table.setItem(i, 1, dim_set['min'])
+            map_dimensions_table.setItem(i, 2, dim_set['max'])
 
         map_dimensions_lay = QVBoxLayout(map_dimensions_group)
-        map_dimensions_lay.addWidget(map_dimensions)
+        map_dimensions_lay.addWidget(map_dimensions_table)
 
         experiment_details_group = QGroupBox('Experiment details')
+        experiment_details_group.setEnabled(False)
         exp_filename_lbl = QLabel('File name: ', self)
         self.exp_filename = QLineEdit()
         self.exp_filename.setReadOnly(True)
@@ -195,33 +214,41 @@ class ScanModuleUI(QWidget):
         experiment_details_lay.addWidget(self.exp_comment, 5, 1)
 
         map_param_lay = QVBoxLayout(topleft_frame)
-        map_param_lay.setSpacing(30)
-        map_param_lay.addWidget(map_dimensions_group)
-        map_param_lay.addWidget(experiment_details_group)
+        map_param_lay.addWidget(map_dimensions_group, 1)
+        map_param_lay.addWidget(experiment_details_group, 2)
+        map_param_lay.setSpacing(20)
 
         # Scan controls
 
         scan_setup_group = QGroupBox('Map setup')
         scan_setup_table = QTableWidget(5, 4)
         scan_setup_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        scan_setup_table.setStyleSheet("border: 0")
+        scan_setup_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        scan_setup_table.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         scan_setup_table.setHorizontalHeaderLabels(['', 'Instrument', 'Count', 'Step'])
+        scan_setup_table.setStyleSheet("border: 0")
 
         self.scanSetup = []
         for i in range(5):
             v_set = {
-                'use': QCheckBox(),
-                'instruments': QComboBox(),
-                'count': QTableWidgetItem(1),
-                'step': QTableWidgetItem(1)
+                'use': QCheckBox(self),
+                'instrument': QComboBox(self),
+                'count': QComboBox(self),
+                'step': QComboBox(self)
             }
-            v_set['instruments'].addItems(['-Select-', 'Mot. X', 'Mot. Y', 'Mot. Z', 'Monochromator WL'])
-            self.scanSetup.append(v_set)
+            v_set['instrument'].addItems(['-No Scan-', 'Mot. X', 'Mot. Y', 'Mot. Z', 'Monochromator WL'])
+            v_set['count'].addItems(['1', '2', '5', '10', '20', '50', '100', '200', '500', '1000'])
+            v_set['count'].setEditable(True)
+            v_set['count'].setValidator(QIntValidator(0, 10000))
+            v_set['step'].addItems(['1', '2', '3', '5', '10', '20', '30', '50', '100'])
+            v_set['step'].setEditable(True)
+            v_set['step'].setValidator(QIntValidator(0, 1000))
+            self.scanSetup.insert(i, v_set)
 
             scan_setup_table.setCellWidget(i, 0, v_set['use'])
-            scan_setup_table.setCellWidget(i, 1, v_set['instruments'])
-            scan_setup_table.setItem(i, 2, v_set['count'])
-            scan_setup_table.setItem(i, 3, v_set['step'])
+            scan_setup_table.setCellWidget(i, 1, v_set['instrument'])
+            scan_setup_table.setCellWidget(i, 2, v_set['count'])
+            scan_setup_table.setCellWidget(i, 3, v_set['step'])
 
         scan_setup_lay = QVBoxLayout(scan_setup_group)
         scan_setup_lay.addWidget(scan_setup_table)
@@ -229,23 +256,24 @@ class ScanModuleUI(QWidget):
         scan_actions_group = QGroupBox('Actions setup')
         scan_actions_table = QTableWidget(5, 3)
         scan_actions_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        scan_actions_table.setStyleSheet("border: 0")
+        scan_actions_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        scan_actions_table.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         scan_actions_table.setHorizontalHeaderLabels(['', 'Action', 'Par.1'])
+        scan_actions_table.setStyleSheet("border: 0")
 
-        self.scanActions = {'use': [], 'actions': [], 'Par.1': []}
         self.scanActions = []
         for i in range(5):
             a_set = {
                 'use': QCheckBox(),
-                'actions': QComboBox(),
-                'Par.1': QTableWidgetItem()
+                'action': QComboBox(),
+                'par1': QLineEdit()
             }
-            a_set['actions'].addItems(['-Select-', 'Acquire spectra', 'Visible frame', 'Ext. measurements'])
-            self.scanSetup.append(a_set)
+            a_set['action'].addItems(['-No Action-', 'Acquire spectra', 'Visible frame', 'Ext. measurements'])
+            self.scanActions.insert(i, a_set)
 
             scan_actions_table.setCellWidget(i, 0, a_set['use'])
-            scan_actions_table.setCellWidget(i, 1, a_set['actions'])
-            scan_actions_table.setItem(i, 2, a_set['Par.1'])
+            scan_actions_table.setCellWidget(i, 1, a_set['action'])
+            scan_actions_table.setCellWidget(i, 2, a_set['par1'])
 
         scan_actions_lay = QVBoxLayout(scan_actions_group)
         scan_actions_lay.addWidget(scan_actions_table)
@@ -253,6 +281,7 @@ class ScanModuleUI(QWidget):
         scan_save_group = QGroupBox('')
 
         self.scanDstPath = QLineEdit(QDir.currentPath(), self)
+        self.scanDstPath.setReadOnly(True)
         self.scanChooseDst = QPushButton('Choose Dir')
         self.scanChooseDst.setMinimumSize(90, 30)
         self.scanDstFilename = QLineEdit(self)
@@ -291,28 +320,28 @@ class ScanModuleUI(QWidget):
         # self.scanProgress.setGeometry(0, 0, 300, 25)
         self.scanProgress.setMaximum(100)
         self.scanProgress.setValue(0)
-        self.scanProgress.setStyleSheet("border: 1px solid #32414B; border-radius: 4px")
+        self.scanProgress.setStyleSheet("border: 1px solid #32414B")
 
         scan_log_group = QGroupBox('Scan log')
         self.scanLog = QTextEdit(self)
+        self.scanLog.setReadOnly(True)
         self.scanLog.setStyleSheet("border: 0")
         scan_log_lay = QVBoxLayout(scan_log_group)
         scan_log_lay.addWidget(self.scanLog)
 
         scan_ctrl_lay = QVBoxLayout(scan_ctrl_group)
         scan_ctrl_lay.setContentsMargins(0, 16, 0, 0)
-        # scan_ctrl_lay.addSpacing(20)
         scan_ctrl_lay.addWidget(self.scanProgress)
         scan_ctrl_lay.addSpacing(10)
         scan_ctrl_lay.addWidget(scan_buttons_group)
         scan_ctrl_lay.addWidget(scan_log_group)
 
         scan_manage_lay = QHBoxLayout(bottom_frame)
+        scan_manage_lay.addWidget(scan_setup_group, 4)
+        scan_manage_lay.addWidget(scan_actions_group, 3)
+        scan_manage_lay.addWidget(scan_save_group, 4)
+        scan_manage_lay.addWidget(scan_ctrl_group, 4)
         scan_manage_lay.setSpacing(20)
-        scan_manage_lay.addWidget(scan_setup_group)
-        scan_manage_lay.addWidget(scan_actions_group)
-        scan_manage_lay.addWidget(scan_save_group)
-        scan_manage_lay.addWidget(scan_ctrl_group)
 
     def image_frame_widget(self):
         bg_color = pg.mkColor('#29353D')
@@ -320,7 +349,7 @@ class ScanModuleUI(QWidget):
         pg.setConfigOptions(imageAxisOrder='row-major')
 
         frame = pg.ImageView()
-        frame.getView().setLimits(xMin=0, xMax=1025, yMin=0, yMax=256)
+        # frame.getView().setLimits(xMin=0, xMax=1025, yMin=0, yMax=256)
 
         size_policy = QSizePolicy()
         size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
@@ -330,5 +359,7 @@ class ScanModuleUI(QWidget):
         frame.ui.histogram.hide()
         frame.ui.roiBtn.hide()
         frame.ui.menuBtn.hide()
+        frame.getView().setMenuEnabled(False)
+        frame.getView().autoRange(padding=0)
 
         return frame

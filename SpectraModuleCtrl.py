@@ -5,20 +5,10 @@ import json
 import numpy as np
 import matplotlib.image as mpimg
 
-from HardWare import *
-from AndorCCD import *
-
 
 class SpectraModuleCtrl(object):
 
-    MOT_X = 0
-    MOT_Y = 1
-    MOT_Z = 2
-
-    MOT_UP = 1
-    MOT_DOWN = -1
-
-    def __init__(self, w):
+    def __init__(self, ui, p_set, hardware, ccd):
         self.columns = np.arange(1024)
         self.rows = np.arange(255)
 
@@ -29,85 +19,28 @@ class SpectraModuleCtrl(object):
 
         # self.framedata = np.random.randint(0, 50, (255, 1024), dtype=np.uint16)
 
-        self.mainform = w
-
-        self.paramSet = []
-        self.storeParameters = True
-        self.init_parameters()
+        self.mainform = ui
+        self.paramSet = p_set
+        self.hardware = hardware
+        self.ccd = ccd
 
         self.connect_events()
-
-        self.hardware = HardWare()
-        #self.ccd = AndorCCD(self.paramSet['Andor'])
-
-    def init_parameters(self):
-        if self.storeParameters:
-            # read parameters from json
-            with open('current-params.json', 'r') as f:
-                self.paramSet = json.load(f)
-
-        else:
-            # default
-            with open('default-params.json', 'r') as f:
-                self.paramSet = json.load(f)
-
-        mf = self.mainform
-        frame_p = self.paramSet['frameSet']
-        stage_p = self.paramSet['stagePos']
-        andor_p = self.paramSet['Andor']
-
-        # Frame parameter set
-        mf.frameRowSelect.setValue(frame_p['row'])
-        mf.frameColSelect.setValue(frame_p['column'])
-        mf.vLine.setPos(frame_p['row'])
-        mf.hLine.setPos(frame_p['column'])
-
-        mf.rowBinning.setValue(frame_p['binning'])
-        if frame_p['binningAvg']:
-            mf.avgBinning.setChecked(True)
-
-        mf.XUnits.button(frame_p['x-axis']).setChecked(True)
-        self.x_units_changed(mf.XUnits.button(frame_p['x-axis']))
-
-        mf.YUnits.button(frame_p['y-axis']).setChecked(True)
-        self.y_units_changed(mf.YUnits.button(frame_p['y-axis']))
-
-        # Hardware parameter set
-        mf.x_pos.setText(str(stage_p['x']))
-        mf.y_pos.setText(str(stage_p['y']))
-        mf.z_pos.setText(str(stage_p['z']))
-        mf.step_val.setCurrentText(str(stage_p['step']))
-
-        mf.laserSelect.setCurrentIndex(self.paramSet['Laser']['source-id'])
-
-        # Andor parameter set
-        mf.exposureTime.setValue(andor_p['exposure'])
-        mf.acquisitionMode.setCurrentIndex(andor_p['AcqMode']['mode'])
-        self.mode_prm_enable(andor_p['AcqMode']['mode'])
-        mf.accumulationFrames.setValue(andor_p['AcqMode']['accumFrames'])
-        mf.accumulationCycle.setValue(andor_p['AcqMode']['accumCycle'])
-        mf.kineticSeries.setValue(andor_p['AcqMode']['kSeries'])
-        mf.kineticCycle.setValue(andor_p['AcqMode']['kCycle'])
-        mf.triggeringMode.setCurrentIndex(andor_p['trigMode'])
-        mf.readoutMode.setCurrentIndex(andor_p['readMode'])
-        mf.VSSpeed.setCurrentIndex(andor_p['VSSpeed'])
-        mf.VSAVoltage.setCurrentIndex(andor_p['VSAVoltage'])
-        mf.readoutRate.setCurrentIndex(andor_p['ADCRate'])
-        mf.preAmpGain.setCurrentIndex(andor_p['gain'])
-
 
     def connect_events(self):
         mf = self.mainform
 
-        mf.x_up.clicked.connect(partial(self.stage_move, self.MOT_X, self.MOT_UP))
-        mf.x_down.clicked.connect(partial(self.stage_move, self.MOT_X, self.MOT_DOWN))
-        mf.y_up.clicked.connect(partial(self.stage_move, self.MOT_Y, self.MOT_UP))
-        mf.y_down.clicked.connect(partial(self.stage_move, self.MOT_Y, self.MOT_DOWN))
-        mf.z_up.clicked.connect(partial(self.stage_move, self.MOT_Z, self.MOT_UP))
-        mf.z_down.clicked.connect(partial(self.stage_move, self.MOT_Z, self.MOT_DOWN))
-        # self.widget.stop_move.clicked.connect(self.hardware.mot_stop)
+        mf.x_up.clicked.connect(partial(self.stage_move, 'X', 1))
+        mf.x_down.clicked.connect(partial(self.stage_move, 'X', -1))
+        mf.y_up.clicked.connect(partial(self.stage_move, 'Y', 1))
+        mf.y_down.clicked.connect(partial(self.stage_move, 'Y', -1))
+        mf.z_up.clicked.connect(partial(self.stage_move, 'Z', 1))
+        mf.z_down.clicked.connect(partial(self.stage_move, 'Z', -1))
+        mf.stop_move.clicked.connect(self.stage_stop)
 
         mf.acquire_btn.clicked.connect(self.acquire)
+
+        mf.monoSetPos.clicked.connect(self.mono_move)
+        mf.monoGridSelect.currentIndexChanged.connect(self.mono_grid_select)
 
         mf.step_val.currentTextChanged.connect(self.stepinfo_change)
 
@@ -122,8 +55,8 @@ class SpectraModuleCtrl(object):
         mf.rowBinning.valueChanged.connect(self.ccd_row_binning)
         mf.avgBinning.stateChanged.connect(self.ccd_row_binning)
 
-        mf.XUnits.buttonClicked.connect(self.x_units_changed)
-        mf.YUnits.buttonClicked.connect(self.y_units_changed)
+        mf.XUnits.buttonClicked.connect(self.x_units_change)
+        mf.YUnits.buttonClicked.connect(self.y_units_change)
 
         # Andor actions
         mf.exposureTime.editingFinished.connect(self.exposure_change)
@@ -178,7 +111,7 @@ class SpectraModuleCtrl(object):
         self.paramSet['frameSet']['binning'] = val
         self.upd_spectrum()
 
-    def x_units_changed(self, button):
+    def x_units_change(self, button):
         id = self.mainform.XUnits.id(button)
         self.paramSet['frameSet']['x-axis'] = id
 
@@ -215,12 +148,12 @@ class SpectraModuleCtrl(object):
             vb.setXRange(self.coordinates[1023], self.coordinates[0], padding=0)
             vb.setLimits(xMin=self.coordinates[1023], xMax=self.coordinates[0])
 
-    def y_units_changed(self, button):
+    def y_units_change(self, button):
         id = self.mainform.YUnits.id(button)
         self.paramSet['frameSet']['y-axis'] = id
 
         if id == 1:
-            self.n_factor = 1 / float(self.mainform.exposureTime.currentText())
+            self.n_factor = 1 / self.mainform.exposureTime.value()
         else:
             self.n_factor = 1
 
@@ -255,28 +188,6 @@ class SpectraModuleCtrl(object):
 
         self.mainform.frameSectionCurve.setData(x=self.framedata[:, column], y=self.rows)
 
-    def mode_prm_enable(self, acq_mode):
-        if acq_mode == 0:
-            self.mainform.accumulationFrames.setEnabled(False)
-            self.mainform.accumulationCycle.setEnabled(False)
-            self.mainform.kineticSeries.setEnabled(False)
-            self.mainform.kineticCycle.setEnabled(False)
-        elif acq_mode == 1:
-            self.mainform.accumulationFrames.setEnabled(True)
-            self.mainform.accumulationCycle.setEnabled(True)
-            self.mainform.kineticSeries.setEnabled(False)
-            self.mainform.kineticCycle.setEnabled(False)
-        elif acq_mode == 2:
-            self.mainform.accumulationFrames.setEnabled(True)
-            self.mainform.accumulationCycle.setEnabled(True)
-            self.mainform.kineticSeries.setEnabled(True)
-            self.mainform.kineticCycle.setEnabled(True)
-        elif acq_mode == 4:
-            self.mainform.accumulationFrames.setEnabled(False)
-            self.mainform.accumulationCycle.setEnabled(True)
-            self.mainform.kineticSeries.setEnabled(True)
-            self.mainform.kineticCycle.setEnabled(False)
-
     def exposure_change(self):
         exp_time = self.mainform.exposureTime.value()
         self.paramSet['Andor']['exposure'] = exp_time
@@ -284,7 +195,7 @@ class SpectraModuleCtrl(object):
 
     def acq_mode_change(self, mode):
         self.paramSet['Andor']['AcqMode']['mode'] = mode
-        self.mode_prm_enable(mode)
+        self.mainform.mode_prm_enable(mode)
         # self.ccd.set_acq_mode(mode)
 
     def trig_mode_change(self, mode):
@@ -331,36 +242,43 @@ class SpectraModuleCtrl(object):
         self.paramSet['Andor']['VSAVoltage'] = vsa_idx
         # self.ccd.set_vsa_volt(vsa_idx)
 
+    def mono_move(self):
+        pos = self.mainform.monoGridPos.value()
+        self.paramSet['MDR-3']['grating-pos'] = pos
+        # move ...
+
+    def mono_grid_select(self, grid_idx):
+        self.paramSet['MDR-3']['grating-select'] = grid_idx
+
     def stepinfo_change(self, val):
         steps = int(val)
         self.paramSet['stagePos']['step'] = steps
 
-        dst = "{0:.2f}".format(self.hardware.STAGE_STEP_DST * steps)
+        dst = "{0:.2f}".format(self.hardware.minStageStep * steps)
         self.mainform.distance_lbl.setText('Distance: ' + dst + 'um')
 
-    def stage_move(self, stage_id, direction, checked=False):
-        steps = int(self.mainform.step_val.currentText())
+    def stage_move(self, axis, direction, checked=False):
+        steps = int(self.mainform.step_val.currentText()) * direction
 
-        if direction == self.MOT_DOWN:
-            steps = -steps
+        self.hardware.move_relaive(axis, steps)
+        new_pos = int(self.mainform.x_pos.text()) + steps
+        self.paramSet['stagePos'][axis] = new_pos
 
-        if stage_id == self.MOT_X:
-            self.hardware.move_x(steps)
-            new_pos = int(self.mainform.x_pos.text()) + steps
-            self.paramSet['stagePos']['x'] = new_pos
+        if axis == 'X':
             self.mainform.x_pos.setText(str(new_pos))
-
-        elif stage_id == self.MOT_Y:
-            self.hardware.move_y(steps)
-            new_pos = int(self.mainform.y_pos.text()) + steps
-            self.paramSet['stagePos']['y'] = new_pos
+        elif axis == 'Y':
             self.mainform.y_pos.setText(str(new_pos))
-
-        elif stage_id == self.MOT_Z:
-            self.hardware.move_z(steps)
-            new_pos = int(self.mainform.z_pos.text()) + steps
-            self.paramSet['stagePos']['z'] = new_pos
+        elif axis == 'Z':
             self.mainform.z_pos.setText(str(new_pos))
+
+    def stage_stop(self):
+        for axis in ('X', 'Y', 'Z'):
+            self.hardware.mot_stop(axis)
+
+        for axis in ('X', 'Y', 'Z'):
+            pos = self.hardware.stage_pos(axis)
+            self.paramSet['stagePos'][axis] = pos
+            self.mainform.x_pos.setText(str(pos))
 
     def get_frame(self):
         # self.framedata = self.ccd.get_data()
@@ -373,14 +291,6 @@ class SpectraModuleCtrl(object):
 
     def acquire(self):
         self.get_frame()
-        self.mainform.CCDFrame.getImageItem().setImage(self.framedata)
+        self.mainform.image.setImage(self.framedata)
         self.upd_spectrum()
         self.upd_frame_section()
-
-    def shut_down(self):
-        print('Shutting down the camera...')
-        # self.ccd.shut_down()
-
-        print('Save parameters...')
-        with open('current-params.json', 'w') as f:
-            json.dump(self.paramSet, f, indent=4)

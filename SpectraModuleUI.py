@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy,
                              QPushButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QRadioButton,
-                             QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
-                             QHBoxLayout, QGridLayout)
+                             QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
+                             QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView)
 from PyQt5.QtCore import Qt, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
 
@@ -16,6 +16,78 @@ class SpectraModuleUI(QWidget):
         super().__init__()
 
         self.ui_construct()
+
+    def init_parameters(self, param_set):
+        frame = param_set['frameSet']
+        stage = param_set['stagePos']
+        laser = param_set['Laser']
+        mono = param_set['MDR-3']
+        andor = param_set['Andor']
+
+        # Frame parameter set
+        self.frameRowSelect.setValue(frame['row'])
+        self.frameColSelect.setValue(frame['column'])
+        self.vLine.setPos(frame['row'])
+        self.hLine.setPos(frame['column'])
+
+        self.rowBinning.setValue(frame['binning'])
+        if frame['binningAvg']:
+            self.avgBinning.setChecked(True)
+
+        # self.XUnits.button(frame['x-axis']).setChecked(True)
+        self.XUnits.button(frame['x-axis']).click()
+
+        # self.YUnits.button(frame['y-axis']).setChecked(True)
+        self.YUnits.button(frame['y-axis']).click()
+
+        # Hardware parameter set
+        self.x_pos.setText(str(stage['x']))
+        self.y_pos.setText(str(stage['y']))
+        self.z_pos.setText(str(stage['z']))
+        self.step_val.setCurrentText(str(stage['step']))
+
+        self.monoGridPos.setValue(mono['grating-pos'])
+        self.monoCurrentPos.setText(str(mono['grating-pos']) + ' Å')
+        self.monoGridSelect.setCurrentIndex(mono['grating-select'])
+
+        self.laserSelect.setCurrentIndex(laser['source-id'])
+
+        # Andor parameter set
+        self.exposureTime.setValue(andor['exposure'])
+        self.acquisitionMode.setCurrentIndex(andor['AcqMode']['mode'])
+        self.mode_prm_enable(andor['AcqMode']['mode'])
+        self.accumulationFrames.setValue(andor['AcqMode']['accumFrames'])
+        self.accumulationCycle.setValue(andor['AcqMode']['accumCycle'])
+        self.kineticSeries.setValue(andor['AcqMode']['kSeries'])
+        self.kineticCycle.setValue(andor['AcqMode']['kCycle'])
+        self.triggeringMode.setCurrentIndex(andor['trigMode'])
+        self.readoutMode.setCurrentIndex(andor['readMode'])
+        self.VSSpeed.setCurrentIndex(andor['VSSpeed'])
+        self.VSAVoltage.setCurrentIndex(andor['VSAVoltage'])
+        self.readoutRate.setCurrentIndex(andor['ADCRate'])
+        self.preAmpGain.setCurrentIndex(andor['gain'])
+
+    def mode_prm_enable(self, acq_mode):
+        if acq_mode == 0:
+            self.accumulationFrames.setEnabled(False)
+            self.accumulationCycle.setEnabled(False)
+            self.kineticSeries.setEnabled(False)
+            self.kineticCycle.setEnabled(False)
+        elif acq_mode == 1:
+            self.accumulationFrames.setEnabled(True)
+            self.accumulationCycle.setEnabled(True)
+            self.kineticSeries.setEnabled(False)
+            self.kineticCycle.setEnabled(False)
+        elif acq_mode == 2:
+            self.accumulationFrames.setEnabled(True)
+            self.accumulationCycle.setEnabled(True)
+            self.kineticSeries.setEnabled(True)
+            self.kineticCycle.setEnabled(True)
+        elif acq_mode == 4:
+            self.accumulationFrames.setEnabled(False)
+            self.accumulationCycle.setEnabled(True)
+            self.kineticSeries.setEnabled(True)
+            self.kineticCycle.setEnabled(False)
 
     def ui_construct(self):
         # Main splitters
@@ -52,9 +124,12 @@ class SpectraModuleUI(QWidget):
         self.monoGridPos.setSingleStep(0.1)
         self.monoGridPos.setDecimals(1)
         self.monoSetPos = QPushButton('Set')
-        self.monoSetPos.setMinimumSize(80, 30)
+        self.monoSetPos.setMinimumSize(90, 30)
         self.monoCurrentPos = QLabel('5000 Å')
-        mono_pos_lbl = QLabel('Grating position: ')
+        mono_pos_lbl = QLabel('Current position: ')
+        self.monoGridSelect = QComboBox(self)
+        self.monoGridSelect.addItems(['300 g/mm', '600 g/mm'])
+        mono_grid_lbl = QLabel('Grating: ')
 
         self.laserSelect = QComboBox(self)
         self.laserSelect.addItems(['Laser 405 nm', 'Laser 450 nm', 'LED 370 nm', 'LED 430 nm'])
@@ -82,14 +157,14 @@ class SpectraModuleUI(QWidget):
         self.step_val.setValidator(QIntValidator(1, 10000))
         step_lbl = QLabel('Step size: ', self)
         self.distance_lbl = QLabel('Distance: 0.05um', self)
-        self.x_up.setMinimumSize(78, 30)
-        self.x_down.setMinimumSize(78, 30)
-        self.x_down.setMinimumSize(78, 30)
-        self.y_up.setMinimumSize(78, 30)
-        self.y_down.setMinimumSize(78, 30)
-        self.z_up.setMinimumSize(78, 30)
-        self.z_down.setMinimumSize(78, 30)
-        self.stop_move.setMinimumSize(78, 30)
+        self.x_up.setMinimumSize(85, 30)
+        self.x_down.setMinimumSize(85, 30)
+        self.x_down.setMinimumSize(85, 30)
+        self.y_up.setMinimumSize(85, 30)
+        self.y_down.setMinimumSize(85, 30)
+        self.z_up.setMinimumSize(85, 30)
+        self.z_down.setMinimumSize(85, 30)
+        self.stop_move.setMinimumSize(85, 30)
 
         self.x_pos = QTableWidgetItem()
         self.x_pos.setTextAlignment(Qt.AlignCenter)
@@ -102,9 +177,9 @@ class SpectraModuleUI(QWidget):
         self.acquire_btn.setFixedSize(120, 60)
 
         stage_coordinates = QTableWidget(3, 1)
-        stage_coordinates.setMaximumWidth(118)
-        stage_coordinates.setMaximumHeight(119)
-        stage_coordinates.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        stage_coordinates.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        stage_coordinates.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        stage_coordinates.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         stage_coordinates.setStyleSheet("border: 0")
         stage_coordinates.setHorizontalHeaderLabels(['Position'])
         stage_coordinates.setVerticalHeaderLabels(['X', 'Y', 'Z'])
@@ -115,11 +190,12 @@ class SpectraModuleUI(QWidget):
         mono_control_group = QGroupBox('Monochromator')
         mono_control_group.setAlignment(Qt.AlignCenter)
         mono_control_lay = QGridLayout(mono_control_group)
-        mono_control_lay.addWidget(self.monoGridPos, 1, 0)
-        mono_control_lay.addWidget(self.monoSetPos, 1, 1)
-        mono_control_lay.addWidget(mono_pos_lbl, 2, 0)
-        mono_control_lay.addWidget(self.monoCurrentPos, 2, 1)
-        mono_control_lay.setRowMinimumHeight(0, 30)
+        mono_control_lay.addWidget(self.monoGridPos, 0, 0)
+        mono_control_lay.addWidget(self.monoSetPos, 0, 1)
+        mono_control_lay.addWidget(mono_pos_lbl, 1, 0)
+        mono_control_lay.addWidget(self.monoCurrentPos, 1, 1)
+        mono_control_lay.addWidget(mono_grid_lbl, 2, 0)
+        mono_control_lay.addWidget(self.monoGridSelect, 2, 1)
 
         light_source_group = QGroupBox('Light source')
         light_source_group.setAlignment(Qt.AlignCenter)
@@ -132,36 +208,35 @@ class SpectraModuleUI(QWidget):
         light_source_lay.addWidget(self.laserConn, 2, 1)
         light_source_lay.addWidget(laser_stat_lbl, 3, 0)
         light_source_lay.addWidget(self.laserStat, 3, 1)
-        light_source_lay.addWidget(self.laserPower, 0, 2, 4, 1, Qt.AlignRight)
-        light_source_lay.setColumnMinimumWidth(2, 30)
+        light_source_lay.addWidget(self.laserPower, 0, 3, 4, 1)
+        light_source_lay.setColumnMinimumWidth(2, 20)
 
         stage_pos_group = QGroupBox('Stage position')
         stage_pos_group.setAlignment(Qt.AlignCenter)
-        stage_pos_lay = QGridLayout()
+        stage_pos_lay = QGridLayout(stage_pos_group)
         stage_pos_lay.addWidget(self.x_up, 1, 2)
         stage_pos_lay.addWidget(self.x_down, 1, 0)
         stage_pos_lay.addWidget(self.y_up, 0, 1)
         stage_pos_lay.addWidget(self.y_down, 2, 1)
-        stage_pos_lay.addWidget(self.y_up, 0, 3)
-        stage_pos_lay.addWidget(self.y_down, 2, 3)
         stage_pos_lay.addWidget(self.z_up, 0, 3)
         stage_pos_lay.addWidget(self.z_down, 2, 3)
         stage_pos_lay.addWidget(self.stop_move, 1, 1)
-        stage_pos_lay.addWidget(self.step_val, 3, 1)
         stage_pos_lay.addWidget(step_lbl, 3, 0)
+        stage_pos_lay.addWidget(self.step_val, 3, 1)
         stage_pos_lay.addWidget(self.distance_lbl, 3, 2, 1, 2)
         stage_pos_lay.setColumnMinimumWidth(4, 20)
         stage_pos_lay.addWidget(stage_coordinates, 0, 5, 4, 1)
-        stage_pos_group.setLayout(stage_pos_lay)
+
+        acquire_btns_group = QFrame(self)
+        acquire_btns_lay = QHBoxLayout(acquire_btns_group)
+        acquire_btns_lay.addWidget(self.acquire_btn)
 
         action_btns_lay = QHBoxLayout(bottom_frame)
-        action_btns_lay.setSpacing(50)
-        action_btns_lay.addStretch(1)
-        action_btns_lay.addWidget(mono_control_group, 0, Qt.AlignLeft)
-        action_btns_lay.addWidget(light_source_group, 0, Qt.AlignLeft)
-        action_btns_lay.addWidget(stage_pos_group, 0, Qt.AlignLeft)
-        action_btns_lay.addWidget(self.acquire_btn, 0, Qt.AlignLeft)
-        action_btns_lay.addStretch(1)
+        action_btns_lay.addWidget(mono_control_group, 3)
+        action_btns_lay.addWidget(light_source_group, 3)
+        action_btns_lay.addWidget(stage_pos_group, 6)
+        action_btns_lay.addWidget(acquire_btns_group, 3)
+        action_btns_lay.setSpacing(20)
 
         # --- CCD Frame Layout ---
 

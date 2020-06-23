@@ -1,40 +1,112 @@
 {
-    "Andor": {
-        "ADCRate": 0,
-        "VSSpeed": 0,
-        "readMode": 0,
-        "exposure": 2.0,
-        "gain": 0,
-        "trigMode": 0,
-        "AcqMode": {
-            "kSeries": 3,
-            "accumCycle": 5.0,
-            "mode": 0,
-            "kCycle": 20.0,
-            "accumFrames": 2
+    "scanActions": {
+        "2": {
+            "par1": "",
+            "use": 0,
+            "id": 0
         },
-        "temperature": -20,
-        "VSAVoltage": 0,
-        "cooler": 1
-    },
-    "frameSet": {
-        "x-axis": 0,
-        "binningAvg": false,
-        "y-axis": 0,
-        "column": 10,
-        "row": 118,
-        "binning": 1
-    },
-    "MDR-3": {
-        "grating-pos": 500
+        "3": {
+            "par1": "",
+            "use": 0,
+            "id": 0
+        },
+        "4": {
+            "par1": "",
+            "use": 0,
+            "id": 0
+        },
+        "1": {
+            "par1": "",
+            "use": 0,
+            "id": 0
+        },
+        "0": {
+            "par1": "",
+            "use": 2,
+            "id": 1
+        }
     },
     "stagePos": {
-        "y": 0,
+        "step": 100,
         "x": 0,
-        "step": 1,
-        "z": 0
+        "z": 0,
+        "y": 5
+    },
+    "frameSet": {
+        "y-axis": 1,
+        "binningAvg": false,
+        "x-axis": 0,
+        "column": 118,
+        "binning": 0,
+        "row": 118
+    },
+    "windowSize": {
+        "height": 960,
+        "width": 1440
+    },
+    "Andor": {
+        "VSAVoltage": 0,
+        "exposure": 3.0,
+        "gain": 0,
+        "AcqMode": {
+            "mode": 0,
+            "accumCycle": 5.0,
+            "accumFrames": 2,
+            "kCycle": 20.0,
+            "kSeries": 3
+        },
+        "cooler": 1,
+        "trigMode": 0,
+        "readMode": 0,
+        "ADCRate": 0,
+        "temperature": -20,
+        "VSSpeed": 0
+    },
+    "cam": {
+        "exposure": 49,
+        "gain": 88,
+        "hFlip": false,
+        "savePath": "",
+        "vFlip": false,
+        "device": 0
     },
     "Laser": {
         "source-id": 0
+    },
+    "MDR-3": {
+        "grating-pos": 4000.0,
+        "grating-select": 1
+    },
+    "scanSet": {
+        "2": {
+            "step": 1,
+            "count": 1,
+            "use": 0,
+            "id": 0
+        },
+        "3": {
+            "step": 1,
+            "count": 1,
+            "use": 0,
+            "id": 0
+        },
+        "4": {
+            "step": 1,
+            "count": 1,
+            "use": 0,
+            "id": 0
+        },
+        "1": {
+            "step": 1,
+            "count": 3,
+            "use": 2,
+            "id": 2
+        },
+        "0": {
+            "step": 1,
+            "count": 3,
+            "use": 2,
+            "id": 1
+        }
     }
 }

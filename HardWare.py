@@ -1,39 +1,49 @@
+import time
 from thorpy.comm.discovery import discover_stages
-from thorpy.message import *
+from thorpy.message.motorcontrol import *
 
 
 class HardWare(object):
 
-    STAGE_STEP_DST = 0.05  # in um
+    MOT_X = 0
+    MOT_Y = 1
+    MOT_Z = 2
+    MOT_UP = 1
+    MOT_DOWN = -1
 
-    def _init__(self):
+    mot = {}
+
+    def __init__(self, p):
+        self.paramSet = p
+
         stages = list(discover_stages())
-        # self.motX = stages[0]
         for s in stages:
-            if s._port._serial_number == 27504545:
-                self.motX = s
-            elif s._port._serial_number == 27504531:
-                self.motY = s
-            elif s._port._serial_number == 27504608:
-                self.motZ = s
+            if s._port.serial_number == self.paramSet["Thorlabs"]["stageX"]:
+                self.mot.update({'X': s})
+            elif s._port.serial_number == self.paramSet["Thorlabs"]["stageY"]:
+                self.mot.update({'Y': s})
+            elif s._port.serial_number == self.paramSet["Thorlabs"]["stageZ"]:
+                self.mot.update({'Z': s})
 
-    def move_x(self, dst):
-        try:
-            self.motX._port.send_message(
-                MGMSG_MOT_MOVE_RELATIVE_long(chan_ident=self.motX._chan_ident, relative_distance=dst))
-        except Exception:
-            pass
+        self.minStageStep = self.paramSet["Thorlabs"]["stageStep"]
 
-    def move_y(self, dst):
-        try:
-            self.motY._port.send_message(
-                MGMSG_MOT_MOVE_RELATIVE_long(chan_ident=self.motY._chan_ident, relative_distance=dst))
-        except Exception:
-            pass
+    def stage_pos(self, axis='X', force=False):
+        s = self.mot[axis]
+        if force:
+            return s.position()
+        else:
+            while s.status_in_motion_forward or s.status_in_motion_reverse or s.status_in_motion_jogging_forward or s.status_in_motion_jogging_reverse or s.status_in_motion_homing:
+                time.sleep(1)
+            return s.position()
 
-    def move_z(self, dst):
-        try:
-            self.motZ._port.send_message(
-                MGMSG_MOT_MOVE_RELATIVE_long(chan_ident=self.motZ._chan_ident, relative_distance=dst))
-        except Exception:
-            pass
+    def stage_move(self, axis='X', dst=0):
+        self.mot[axis]._port.send_message(
+            MGMSG_MOT_MOVE_RELATIVE_long(chan_ident=self.mot[axis]._chan_ident, relative_distance=dst))
+
+    def stage_goto(self, axis='X', pos=0):
+        self.mot[axis]._port.send_message(
+            MGMSG_MOT_MOVE_ABSOLUTE_long(chan_ident=self.mot[axis]._chan_ident, absolute_distance=pos))
+
+    def stage_stop(self, axis='X'):
+        self.mot[axis]._port.send_message(
+            MGMSG_MOT_MOVE_STOP(chan_ident=self.mot[axis]._chan_ident, stop_mode=0x02))

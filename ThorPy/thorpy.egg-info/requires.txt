@@ -1,2 +1,0 @@
-pyserial>=2.7
-pyusb>=1.0.0a

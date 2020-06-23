@@ -11,21 +11,21 @@ class AndorCCD(object):
     READ_MODE = (4, 3, 1, 0)
 
     def __init__(self, params):
-        self.cam = Andor()
-
-        self.set_exposure(params['exposure'])
-        self.set_acq_mode(params['AcqMode'])
-        self.set_trig_mode(params['trigMode'])
-        self.set_read_mode(params['readMode'])
-        self.cam.SetShutter(1, 1, 0, 0)
-        self.set_adc_rate(params['ADCRate'])
-        self.set_gain(params['gain'])
-        self.set_shift_speed(params['VSSpeed'])
-        self.set_vsa_volt(params['VSAVoltage'])
-
-        self.cam.SetCoolerMode(params['cooler'])
-        self.cam.CoolerON()
-        self.set_temperature(params['temperature'])
+        # self.cam = Andor()
+        #
+        # self.set_exposure(params['exposure'])
+        # self.set_acq_mode(params['AcqMode'])
+        # self.set_trig_mode(params['trigMode'])
+        # self.set_read_mode(params['readMode'])
+        # self.cam.SetShutter(1, 1, 0, 0)
+        # self.set_adc_rate(params['ADCRate'])
+        # self.set_gain(params['gain'])
+        # self.set_shift_speed(params['VSSpeed'])
+        # self.set_vsa_volt(params['VSAVoltage'])
+        #
+        # self.cam.SetCoolerMode(params['cooler'])
+        # self.cam.CoolerON()
+        # self.set_temperature(params['temperature'])
 
         self.ccdData = np.zeros((1024, 255), dtype=np.uint8)
 

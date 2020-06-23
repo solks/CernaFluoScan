@@ -1,22 +1,39 @@
 from PyQt5.QtWidgets import (QMainWindow, QDesktopWidget, QWidget, QTabWidget, QMenu, QMessageBox)
 from PyQt5.QtCore import Qt
 import qdarkstyle
+import json
 
 from SpectraModuleUI import SpectraModuleUI
 from SpectraModuleCtrl import SpectraModuleCtrl
 from ScanModuleUI import ScanModuleUI
+from ScanModuleCtrl import ScanModuleCtrl
 from WidgetsUI import CTabBar
-
+from HardWare import HardWare
+from AndorCCD import AndorCCD
 
 class AppWindow(QMainWindow):
 
-    W_HEIGHT = 960
-    W_WIDTH = 1440
+    storeParameters = True
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.resize(self.W_WIDTH, self.W_HEIGHT)
+        self.paramSet = []
+        if self.storeParameters:
+            # read parameters from json
+            with open('current-params.json', 'r') as f:
+                self.paramSet = json.load(f)
+        else:
+            # default
+            with open('default-params.json', 'r') as f:
+                self.paramSet = json.load(f)
+
+        self.hardwareConf = []
+        # read parameters from json
+        with open('hardware-config.json', 'r') as f:
+            self.hardwareConf = json.load(f)
+
+        self.resize(self.paramSet['windowSize']['width'], self.paramSet['windowSize']['height'])
 
         qr = self.frameGeometry()
         cp = QDesktopWidget().availableGeometry().center()
@@ -24,8 +41,12 @@ class AppWindow(QMainWindow):
         self.move(qr.topLeft())
 
         self.ui_construct()
-
         self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+
+        self.hardware = HardWare(self.hardwareConf)
+        self.ccd = AndorCCD(self.paramSet['Andor'])
+
+        self.ctrl_init()
 
     def ui_construct(self):
         # Main widget
@@ -57,19 +78,33 @@ class AppWindow(QMainWindow):
         self.helpMenu.addAction('&About', self.about)
 
         self.mainWidget.addTab(self.spectraModule, "Spectrum Acquisition Module")
-        self.spectraActions = SpectraModuleCtrl(self.spectraModule)
-
         self.mainWidget.addTab(self.scanModule, "Scan Module")
-        # self.scanActions = ScanModuleCtrl(self.scanModule)
-
         self.mainWidget.addTab(self.analysisModule, "Analysis Module")
+
+    def ctrl_init(self):
+        self.spectraActions = SpectraModuleCtrl(self.spectraModule, self.paramSet, self.hardware, self.ccd)
+        self.spectraModule.init_parameters(self.paramSet)
+
+        self.scanActions = ScanModuleCtrl(self.scanModule, self.paramSet, self.hardware, self.ccd)
+        self.scanModule.init_parameters(self.paramSet)
+
+    def shut_down(self):
+        print('Shutting down the Andor CCD...')
+        # self.ccd.shut_down()
+
+        print('Stopping processes...')
+        self.scanActions.stop_threads()
+
+        print('Save parameters...')
+        with open('current-params.json', 'w') as f:
+            json.dump(self.paramSet, f, indent=4)
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, 'Message', "Are you sure to quit?",
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
-            self.spectraActions.shut_down()
+            self.shut_down()
             event.accept()
         else:
             event.ignore()
