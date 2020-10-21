@@ -4,12 +4,13 @@ import qdarkstyle
 import json
 
 from SpectraModuleUI import SpectraModuleUI
-from SpectraModuleCtrl import SpectraModuleCtrl
+from SpectraModuleActions import SpectraModuleActions
 from ScanModuleUI import ScanModuleUI
-from ScanModuleCtrl import ScanModuleCtrl
-from WidgetsUI import CTabBar
-from HardWare import HardWare
-from AndorCCD import AndorCCD
+from ScanModuleActions import ScanModuleActions
+from CameraWI import CamWI
+from WidgetsUI import VTabBar
+from HardWareCtrl import HardWare
+from AndorCtrl import AndorCCD
 
 class AppWindow(QMainWindow):
 
@@ -46,7 +47,7 @@ class AppWindow(QMainWindow):
         self.hardware = HardWare(self.hardwareConf)
         self.ccd = AndorCCD(self.paramSet['Andor'])
 
-        self.ctrl_init()
+        self.actions_init()
 
     def ui_construct(self):
         # Main widget
@@ -59,11 +60,16 @@ class AppWindow(QMainWindow):
         self.fileMenu = QMenu('&File', self)
         self.helpMenu = QMenu('&Help', self)
 
+        # Camera widget
+        self.CameraSp = CamWI(self.paramSet)
+        self.CameraSc = CamWI(self.paramSet)
+
         # Module for spectrum acquisition
-        self.spectraModule = SpectraModuleUI()
+        self.spectraModule = SpectraModuleUI(self.CameraSp)
         self.spectraModule.setFocus()
+        self.CameraSp.run()
         # Module for scanning
-        self.scanModule = ScanModuleUI()
+        self.scanModule = ScanModuleUI(self.CameraSc)
         # Module for analysis data
         self.analysisModule = QWidget()
 
@@ -81,12 +87,25 @@ class AppWindow(QMainWindow):
         self.mainWidget.addTab(self.scanModule, "Scan Module")
         self.mainWidget.addTab(self.analysisModule, "Analysis Module")
 
-    def ctrl_init(self):
-        self.spectraActions = SpectraModuleCtrl(self.spectraModule, self.paramSet, self.hardware, self.ccd)
+    def actions_init(self):
+        self.mainWidget.currentChanged.connect(self.tab_chenge)
+
+        self.spectraActions = SpectraModuleActions(self.spectraModule, self.paramSet, self.hardware, self.ccd)
         self.spectraModule.init_parameters(self.paramSet)
 
-        self.scanActions = ScanModuleCtrl(self.scanModule, self.paramSet, self.hardware, self.ccd)
+        self.scanActions = ScanModuleActions(self.scanModule, self.paramSet, self.hardware, self.ccd)
         self.scanModule.init_parameters(self.paramSet)
+
+    def tab_chenge(self, idx):
+        if idx == 0:
+            self.CameraSc.stop()
+            self.CameraSp.run()
+        elif idx == 1:
+            self.CameraSp.stop()
+            self.CameraSc.run()
+        elif idx == 2:
+            self.CameraSp.stop()
+            self.CameraSc.stop()
 
     def shut_down(self):
         print('Shutting down the Andor CCD...')
@@ -94,6 +113,8 @@ class AppWindow(QMainWindow):
 
         print('Stopping processes...')
         self.scanActions.stop_threads()
+        self.CameraSp.shut_down()
+        self.CameraSc.shut_down()
 
         print('Save parameters...')
         with open('current-params.json', 'w') as f:

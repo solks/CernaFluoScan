@@ -1,46 +1,22 @@
 from functools import partial
 import threading
 import time
-import numpy as np
-
-from Camera import Cam
 
 
-class ScanModuleCtrl(object):
-
-    _camThread = True
+class ScanModuleActions(object):
 
     _scanThread = False
 
     def __init__(self, ui, p_set, hardware, ccd):
-
-        self.camCapture = False
 
         self.ui = ui
         self.paramSet = p_set
         self.hardware = hardware
         self.ccd = ccd
 
-        self.cam = Cam()
-        self.camData = np.zeros((self.cam.imageHeight, self.cam.imageWidth, self.cam.imageChannel), np.ubyte)
-
-        if self.cam.camOpened:
-            self.camCapture = True
-            self.fill_cam_list(self.cam.capList)
-
-            self.camData = self.cam.requestImage()
-            self.ui.camImage.setImage(self.camData)
-            self.ui.vCamFrame.getView().autoRange(padding=0)
-
-        threading.Thread(target=self.run_camera).start()
-
         self.connect_events()
 
     def connect_events(self):
-        self.ui.vcamExposure.valueChanged.connect(self.cam_exposure_change)
-        self.ui.vcamGain.valueChanged.connect(self.cam_gain_change)
-        self.ui.vcamFlipH.stateChanged.connect(self.cam_hflip_change)
-        self.ui.vcamFlipV.stateChanged.connect(self.cam_vflip_change)
 
         for i, el in enumerate(self.ui.scanSetup):
             el['use'].stateChanged.connect(partial(self.scan_setup_change, idx=i, par_id=0))
@@ -55,51 +31,8 @@ class ScanModuleCtrl(object):
 
         self.ui.scanStart.clicked.connect(self.run_scan)
 
-    def fill_cam_list(self, device_list):
-        for i, device in enumerate(device_list):
-            self.ui.vcamSelect.addItem('Camera #'
-                                       + str(device['name'] + 1)
-                                       + ' (' + str(device['width'])
-                                       + ':' + str(device['height']) + ')')
-
-    def run_camera(self):
-        while 1:
-            if self.camCapture:
-                self.camData = self.cam.requestImage()
-                self.ui.camImage.setImage(self.camData)
-
-            if not self._camThread:
-                break
-
-            time.sleep(0.04)
-
     def stop_threads(self):
-        self._camThread = False
         self._scanThread = False
-
-    def cam_exposure_change(self, exposure):
-        self.paramSet['cam']['exposure'] = exposure
-        self.cam.set_gain(exposure)
-
-    def cam_gain_change(self, gain):
-        self.paramSet['cam']['gain'] = gain
-        self.cam.set_gain(gain)
-
-    def cam_hflip_change(self, val):
-        if val:
-            self.paramSet['cam']['hFlip'] = True
-            self.cam.hFlip = True
-        else:
-            self.paramSet['cam']['hFlip'] = False
-            self.cam.hFlip = False
-
-    def cam_vflip_change(self, val):
-        if val:
-            self.paramSet['cam']['vFlip'] = True
-            self.cam.vFlip = True
-        else:
-            self.paramSet['cam']['vFlip'] = False
-            self.cam.vFlip = False
 
     def scan_setup_change(self, val, idx=0, par_id=0):
         si = str(idx)

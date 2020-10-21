@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.image as mpimg
 
 
-class SpectraModuleCtrl(object):
+class SpectraModuleActions(object):
 
     def __init__(self, ui, p_set, hardware, ccd):
         self.columns = np.arange(1024)
@@ -39,9 +39,6 @@ class SpectraModuleCtrl(object):
 
         mf.acquire_btn.clicked.connect(self.acquire)
 
-        mf.monoSetPos.clicked.connect(self.mono_move)
-        mf.monoGridSelect.currentIndexChanged.connect(self.mono_grid_select)
-
         mf.step_val.currentTextChanged.connect(self.stepinfo_change)
 
         mf.vLine.sigPositionChanged.connect(self.ccd_vline_pos)
@@ -57,6 +54,12 @@ class SpectraModuleCtrl(object):
 
         mf.XUnits.buttonClicked.connect(self.x_units_change)
         mf.YUnits.buttonClicked.connect(self.y_units_change)
+
+        # Monochromator Actions
+        mf.WLStart.editingFinished.connect(self.WL_start_change)
+        mf.WLStart.editingFinished.connect(self.WL_end_change)
+        mf.monoSetPos.clicked.connect(self.mono_move)
+        mf.monoGridSelect.currentIndexChanged.connect(self.mono_grid_select)
 
         # Andor actions
         mf.exposureTime.editingFinished.connect(self.exposure_change)
@@ -241,6 +244,14 @@ class SpectraModuleCtrl(object):
     def vsa_volt_change(self, vsa_idx):
         self.paramSet['Andor']['VSAVoltage'] = vsa_idx
         # self.ccd.set_vsa_volt(vsa_idx)
+
+    def WL_start_change(self):
+        val = self.mainform.WLStart.value()
+        self.paramSet['MDR-3']['WL-start'] = val
+
+    def WL_end_change(self):
+        val = self.mainform.WLEnd.value()
+        self.paramSet['MDR-3']['WL-end'] = val
 
     def mono_move(self):
         pos = self.mainform.monoGridPos.value()

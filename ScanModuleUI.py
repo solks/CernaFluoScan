@@ -5,28 +5,23 @@ from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy, QTabWidget
                              QAbstractItemView)
 from PyQt5.QtCore import Qt, QDir, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
-from WidgetsUI import CTabBar
+from WidgetsUI import VTabBar, PgImageView
 
 import pyqtgraph as pg
 
 
 class ScanModuleUI(QWidget):
 
-    def __init__(self):
+    def __init__(self, cam_wi):
         super().__init__()
+
+        self.CameraWI = cam_wi
 
         self.ui_construct()
 
     def init_parameters(self, param_set):
-        cam = param_set['cam']
         scan_set = param_set['scanSet']
         scan_actions = param_set['scanActions']
-
-        # Camera parameter set
-        self.vcamExposure.setSliderPosition(cam['exposure'])
-        self.vcamGain.setSliderPosition(cam['gain'])
-        self.vcamFlipH.setChecked(cam['hFlip'])
-        self.vcamFlipV.setChecked(cam['vFlip'])
 
         # Scan parameter set
         for i, el in enumerate(self.scanSetup):
@@ -71,91 +66,18 @@ class ScanModuleUI(QWidget):
         main_lay.addWidget(splitter2)
 
         view_area = QTabWidget(self)
-        vcam = QFrame(self)
+        # view_area.setTabBar(VTabBar(self))
+        view_area.setTabPosition(QTabWidget.West)
         smap = QFrame(self)
-        view_area.addTab(vcam, "Camera")
+        view_area.addTab(self.CameraWI, "Camera")
         view_area.addTab(smap, "Scan Map")
 
         view_area_lay = QVBoxLayout(topright_frame)
         view_area_lay.addWidget(view_area)
 
-        # Camera layout
-
-        self.vcamSelect = QComboBox(self)
-        self.vcamSelect.setToolTip('Choose Camera...')
-
-        self.vCamFrame = self.image_frame_widget()
-        self.vCamFrame.getView().setAspectLocked()
-        self.camImage = pg.ImageItem()
-        self.vCamFrame.addItem(self.camImage)
-
-        self.vcamExposure = QSlider(Qt.Vertical)
-        self.vcamGain = QSlider(Qt.Vertical)
-        vcam_exposure_lbl = QLabel('Exposition', self)
-        vcam_gain_lbl = QLabel('Gain', self)
-
-        self.vcamFlipH = QCheckBox('Flip Horizontal')
-        self.vcamFlipV = QCheckBox('Flip Vertical')
-
-        self.vcamShowScan = QCheckBox('Show Scan Area')
-
-        self.vcamDstPath = QLineEdit(QDir.currentPath(), self)
-        self.vcamDstPath.setReadOnly(True)
-        self.vcamChooseDst = QPushButton('Choose Dir')
-        self.vcamSaveImage = QPushButton('Save')
-        self.vcamChooseDst.setMinimumSize(90, 30)
-        self.vcamSaveImage.setMinimumSize(90, 30)
-        # vcam_dst_path_lbl = QLabel('Path:', self)
-
-        vcam_exposure_group = QGroupBox('Exposition')
-        vcam_exposure_group.setAlignment(Qt.AlignCenter)
-        vcam_exposure_lay = QGridLayout(vcam_exposure_group)
-        vcam_exposure_lay.addWidget(self.vcamExposure, 0, 0, Qt.AlignCenter)
-        vcam_exposure_lay.addWidget(self.vcamGain, 0, 1, Qt.AlignCenter)
-        vcam_exposure_lay.addWidget(vcam_exposure_lbl, 1, 0)
-        vcam_exposure_lay.addWidget(vcam_gain_lbl, 1, 1)
-
-        vcam_flip_group = QGroupBox('Flip image')
-        vcam_flip_group.setAlignment(Qt.AlignCenter)
-        vcam_flip_lay = QVBoxLayout(vcam_flip_group)
-        vcam_flip_lay.addWidget(self.vcamFlipH)
-        vcam_flip_lay.addWidget(self.vcamFlipV)
-
-        vcam_scan_area_group = QGroupBox('Scan Area')
-        vcam_scan_area_group.setAlignment(Qt.AlignCenter)
-        vcam_scan_area_lay = QVBoxLayout(vcam_scan_area_group)
-        vcam_scan_area_lay.addWidget(self.vcamShowScan)
-
-        # vcam_file_path = QFrame(self)
-        # vcam_file_path_lay = QHBoxLayout(vcam_file_path)
-        # vcam_file_path_lay.addWidget(vcam_dst_path_lbl)
-        # vcam_file_path_lay.addWidget(self.vcamDstPath)
-
-        vcam_file_group = QGroupBox('Save image')
-        vcam_file_group.setAlignment(Qt.AlignCenter)
-        vcam_file_lay = QGridLayout(vcam_file_group)
-        # vcam_file_lay.addWidget(vcam_dst_path_lbl, 0, 0)
-        vcam_file_lay.addWidget(self.vcamDstPath, 1, 0, 1, 2)
-        vcam_file_lay.addWidget(self.vcamChooseDst, 2, 0)
-        vcam_file_lay.addWidget(self.vcamSaveImage, 2, 1)
-
-        vcam_param = QFrame(self)
-        vcam_param_lay = QVBoxLayout(vcam_param)
-        vcam_param_lay.addWidget(self.vcamSelect)
-        vcam_param_lay.addWidget(vcam_exposure_group)
-        vcam_param_lay.addWidget(vcam_flip_group)
-        vcam_param_lay.addWidget(vcam_scan_area_group)
-        vcam_param_lay.addWidget(vcam_file_group)
-
-        vcam_lay = QGridLayout(vcam)
-        vcam_lay.setColumnStretch(0, 1)
-        vcam_lay.setColumnStretch(1, 5)
-        vcam_lay.addWidget(vcam_param, 0, 0)
-        vcam_lay.addWidget(self.vCamFrame, 0, 1)
-
         # Scan map layout
 
-        self.mapFrame = self.image_frame_widget()
+        self.mapFrame = PgImageView()
         self.map = pg.ImageItem()
         self.mapFrame.addItem(self.map)
 
@@ -221,6 +143,7 @@ class ScanModuleUI(QWidget):
         # Scan controls
 
         scan_setup_group = QGroupBox('Map setup')
+
         scan_setup_table = QTableWidget(5, 4)
         scan_setup_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         scan_setup_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
@@ -254,6 +177,7 @@ class ScanModuleUI(QWidget):
         scan_setup_lay.addWidget(scan_setup_table)
 
         scan_actions_group = QGroupBox('Actions setup')
+
         scan_actions_table = QTableWidget(5, 3)
         scan_actions_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         scan_actions_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
@@ -278,6 +202,14 @@ class ScanModuleUI(QWidget):
         scan_actions_lay = QVBoxLayout(scan_actions_group)
         scan_actions_lay.addWidget(scan_actions_table)
 
+        scan_results_group = QFrame(self)
+
+        scan_area_group = QGroupBox('')
+        self.showScan = QCheckBox('Show Scan Area')
+        scan_area_lay = QVBoxLayout(scan_area_group)
+        scan_area_lay.setContentsMargins(10, 3, 10, 3)
+        scan_area_lay.addWidget(self.showScan)
+
         scan_save_group = QGroupBox('')
 
         self.scanDstPath = QLineEdit(QDir.currentPath(), self)
@@ -285,19 +217,25 @@ class ScanModuleUI(QWidget):
         self.scanChooseDst = QPushButton('Choose Dir')
         self.scanChooseDst.setMinimumSize(90, 30)
         self.scanDstFilename = QLineEdit(self)
-        self.scanExpComment = QTextEdit(self)
+        self.scanExpmntComment = QTextEdit(self)
         scan_path_lbl = QLabel('Directory: ')
         scan_file_lbl = QLabel('Filename: ')
         scan_comment_lbl = QLabel('Comment: ')
 
-        scan_actions_lay = QGridLayout(scan_save_group)
-        scan_actions_lay.addWidget(scan_path_lbl, 0, 0)
-        scan_actions_lay.addWidget(self.scanDstPath, 0, 1)
-        scan_actions_lay.addWidget(self.scanChooseDst, 0, 2)
-        scan_actions_lay.addWidget(scan_file_lbl, 1, 0)
-        scan_actions_lay.addWidget(self.scanDstFilename, 1, 1, 1, 2)
-        scan_actions_lay.addWidget(scan_comment_lbl, 2, 0)
-        scan_actions_lay.addWidget(self.scanExpComment, 2, 1, 1, 2)
+        scan_save_lay = QGridLayout(scan_save_group)
+        scan_save_lay.addWidget(scan_path_lbl, 0, 0)
+        scan_save_lay.addWidget(self.scanDstPath, 0, 1)
+        scan_save_lay.addWidget(self.scanChooseDst, 0, 2)
+        scan_save_lay.addWidget(scan_file_lbl, 1, 0)
+        scan_save_lay.addWidget(self.scanDstFilename, 1, 1, 1, 2)
+        scan_save_lay.addWidget(scan_comment_lbl, 2, 0)
+        scan_save_lay.addWidget(self.scanExpmntComment, 2, 1, 1, 2)
+
+        scan_results_lay = QVBoxLayout(scan_results_group)
+        scan_results_lay.setContentsMargins(0, 0, 0, 0)
+        scan_results_lay.setSpacing(0)
+        scan_results_lay.addWidget(scan_area_group)
+        scan_results_lay.addWidget(scan_save_group)
 
         scan_ctrl_group = QFrame(self)
 
@@ -339,27 +277,6 @@ class ScanModuleUI(QWidget):
         scan_manage_lay = QHBoxLayout(bottom_frame)
         scan_manage_lay.addWidget(scan_setup_group, 4)
         scan_manage_lay.addWidget(scan_actions_group, 3)
-        scan_manage_lay.addWidget(scan_save_group, 4)
+        scan_manage_lay.addWidget(scan_results_group, 4)
         scan_manage_lay.addWidget(scan_ctrl_group, 4)
         scan_manage_lay.setSpacing(20)
-
-    def image_frame_widget(self):
-        bg_color = pg.mkColor('#29353D')
-        pg.setConfigOptions(background=bg_color)
-        pg.setConfigOptions(imageAxisOrder='row-major')
-
-        frame = pg.ImageView()
-        # frame.getView().setLimits(xMin=0, xMax=1025, yMin=0, yMax=256)
-
-        size_policy = QSizePolicy()
-        size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
-        size_policy.setVerticalPolicy(QSizePolicy.Expanding)
-        frame.setSizePolicy(size_policy)
-        frame.setMinimumSize(512, 512)
-        frame.ui.histogram.hide()
-        frame.ui.roiBtn.hide()
-        frame.ui.menuBtn.hide()
-        frame.getView().setMenuEnabled(False)
-        frame.getView().autoRange(padding=0)
-
-        return frame

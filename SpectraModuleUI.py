@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy,
                              QPushButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QRadioButton,
                              QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
-                             QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView)
+                             QTabWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView)
 from PyQt5.QtCore import Qt, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
 
@@ -12,8 +12,10 @@ from WidgetsUI import CrossCursor
 
 class SpectraModuleUI(QWidget):
 
-    def __init__(self):
+    def __init__(self, cam_wi):
         super().__init__()
+
+        self.CameraWI = cam_wi
 
         self.ui_construct()
 
@@ -46,6 +48,8 @@ class SpectraModuleUI(QWidget):
         self.z_pos.setText(str(stage['z']))
         self.step_val.setCurrentText(str(stage['step']))
 
+        self.WLStart.setValue(mono['WL-start'])
+        self.WLEnd.setValue(mono['WL-end'])
         self.monoGridPos.setValue(mono['grating-pos'])
         self.monoCurrentPos.setText(str(mono['grating-pos']) + ' Å')
         self.monoGridSelect.setCurrentIndex(mono['grating-select'])
@@ -116,6 +120,15 @@ class SpectraModuleUI(QWidget):
 
         main_lay = QVBoxLayout(self)
         main_lay.addWidget(splitter2)
+
+        view_area = QTabWidget(self)
+        view_area.setTabPosition(QTabWidget.West)
+        ccd = QFrame(self)
+        view_area.addTab(ccd, "Spectra acquisition")
+        view_area.addTab(self.CameraWI, "Camera")
+
+        view_area_lay = QVBoxLayout(topright_frame)
+        view_area_lay.addWidget(view_area)
 
         # --- Controls frame ---
 
@@ -321,7 +334,7 @@ class SpectraModuleUI(QWidget):
         frame_param_lay.addWidget(x_units_group)
         frame_param_lay.addWidget(row_binning_group)
 
-        ccd_lay = QGridLayout(topright_frame)
+        ccd_lay = QGridLayout(ccd)
         ccd_lay.setRowStretch(0, 2)
         ccd_lay.setRowStretch(1, 3)
         ccd_lay.setColumnStretch(0, 1)
@@ -331,7 +344,22 @@ class SpectraModuleUI(QWidget):
         ccd_lay.addWidget(self.frameSection, 0, 0)
         ccd_lay.addWidget(frame_param, 1, 0)
 
-        # --- Andor Camera Settings ---
+        # --- Experiment Details, Andor Camera Settings ---
+
+        self.WLStart = QDoubleSpinBox(self)
+        self.WLStart.setRange(2000.0, 10000.0)
+        self.WLStart.setSingleStep(0.1)
+        self.WLStart.setDecimals(1)
+        self.WLEnd = QDoubleSpinBox(self)
+        self.WLEnd.setRange(2000.0, 10000.0)
+        self.WLEnd.setSingleStep(0.1)
+        self.WLEnd.setDecimals(1)
+
+        WL_range_group = QGroupBox("Wavelength range")
+        WL_range_lay = QHBoxLayout(WL_range_group)
+        WL_range_lay.addWidget(self.WLStart)
+        WL_range_lay.addSpacing(40)
+        WL_range_lay.addWidget(self.WLEnd)
 
         self.exposureTime = QDoubleSpinBox(self)
         self.exposureTime.setRange(0.01, 1000.0)
@@ -425,6 +453,7 @@ class SpectraModuleUI(QWidget):
         cam_readout_lay.addWidget(vsa_voltage_lbl, 3, 0)
         cam_readout_lay.addWidget(self.VSAVoltage, 3, 1)
 
+        cam_settings_lay.addWidget(WL_range_group)
         cam_settings_lay.addWidget(cam_exposure_group)
         cam_settings_lay.addWidget(cam_timing_group)
         cam_settings_lay.addWidget(cam_mode_group)

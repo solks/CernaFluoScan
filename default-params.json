@@ -1,6 +1,6 @@
 {
   "windowSize": {
-    "width": 1440,
+    "width": 1535,
     "height": 960
   },
   "stagePos": {
@@ -36,6 +36,8 @@
     "cooler": 1
   },
   "MDR-3": {
+    "WL-start": 4000,
+    "WL-end": 7000,
     "grating-pos": 5000,
     "grating-select": 0
   },
@@ -46,6 +48,7 @@
     "device": 0,
     "exposure": 0,
     "gain": 0,
+    "autoExp": false,
     "hFlip": false,
     "vFlip": false,
     "savePath": ""

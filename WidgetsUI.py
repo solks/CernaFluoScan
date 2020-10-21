@@ -1,17 +1,39 @@
-from PyQt5.QtWidgets import (QWidget, QTabBar)
+from PyQt5.QtWidgets import (QWidget, QTabBar, QSizePolicy)
 from PyQt5.QtCore import Qt, QRectF, QLineF, QPointF, QSize
 
 import pyqtgraph as pg
 
 
-class CTabBar(QTabBar):
+class VTabBar(QTabBar):
     def __init__(self, parent=None):
         QTabBar.__init__(self, parent)
 
     def tabSizeHint(self, index):
         size = QTabBar.tabSizeHint(self, index)
-        w = int(self.width()/self.count())
-        return QSize(w, size.height())
+        h = int(self.height()/2)
+        return QSize(size.width(), h)
+
+
+class PgImageView(pg.ImageView):
+    def __init__(self, parent=None):
+        pg.setConfigOptions(background=pg.mkColor('#29353D'))
+        pg.setConfigOptions(imageAxisOrder='row-major')
+        pg.ImageView.__init__(self, parent)
+
+        self.init_ui()
+
+    def init_ui(self):
+        # self.getView().setLimits(xMin=0, xMax=640, yMin=0, yMax=480)
+
+        size_policy = QSizePolicy()
+        size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
+        size_policy.setVerticalPolicy(QSizePolicy.Expanding)
+        self.setSizePolicy(size_policy)
+        self.setMinimumSize(512, 512)
+        self.ui.histogram.hide()
+        self.ui.roiBtn.hide()
+        self.ui.menuBtn.hide()
+        self.getView().setMenuEnabled(False)
 
 
 class CrossCursor(pg.InfiniteLine):

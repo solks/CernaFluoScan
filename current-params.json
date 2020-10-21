@@ -36,13 +36,13 @@
         "y-axis": 1,
         "binningAvg": false,
         "x-axis": 0,
-        "column": 118,
+        "column": 139,
         "binning": 0,
-        "row": 118
+        "row": 139
     },
     "windowSize": {
         "height": 960,
-        "width": 1440
+        "width": 1535
     },
     "Andor": {
         "VSAVoltage": 0,
@@ -56,17 +56,18 @@
             "kSeries": 3
         },
         "cooler": 1,
-        "trigMode": 0,
+        "trigMode": 3,
         "readMode": 0,
         "ADCRate": 0,
         "temperature": -20,
         "VSSpeed": 0
     },
     "cam": {
-        "exposure": 49,
-        "gain": 88,
+        "exposure": 20,
+        "gain": 20,
+        "autoExp": 2,
         "hFlip": false,
-        "savePath": "",
+        "savePath": "/home/solk-d10/Documents/Work/Phys/CernaMicro/Python/img",
         "vFlip": false,
         "device": 0
     },
@@ -74,6 +75,8 @@
         "source-id": 0
     },
     "MDR-3": {
+        "WL-start": 4000.0,
+        "WL-end": 7000.0,
         "grating-pos": 4000.0,
         "grating-select": 1
     },
