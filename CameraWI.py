@@ -157,9 +157,7 @@ class CamWI(QFrame):
 
     def fill_cam_list(self, device_list, current_index):
         for i, device in enumerate(device_list):
-            self.camSelect.addItem(device['name']
-                                   + ' (' + str(device['width'])
-                                   + ':' + str(device['height']) + ')')
+            self.camSelect.addItem(device['name'] + ' [W ' + str(device['width']) + ' : H ' + str(device['height']) + ']')
 
         self.camSelect.setCurrentIndex(current_index)
 

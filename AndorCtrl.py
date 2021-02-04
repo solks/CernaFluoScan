@@ -1,7 +1,6 @@
 from pyAndor.Camera.andor import *
 import signal
 import numpy as np
-import matplotlib.image as mpimg
 
 
 class AndorCCD(object):

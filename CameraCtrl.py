@@ -54,19 +54,34 @@ class Cam(object):
         with Vimba.get_instance() as vimba:
             cams = vimba.get_all_cameras()
             if cams:
-                for cam in cams[0]:
-                    img = cam.get_frame().as_opencv_image()
-                    height, width, channel = img.shape
-                    devices.append({
-                        'deviceID': cam.get_id(),
-                        'provider': 'vimba',
-                        'name': cam.get_name,
-                        'width': width,
-                        'height': height,
-                        'channel': channel
-                    })
+                for i in range(len(cams)):
+                    with cams[i] as cam:
+                        # self.vmb_pixel_format(cam)
+                        devices.append({
+                            'deviceID': cam.get_id(),
+                            'provider': 'vimba',
+                            'name': cam.get_feature_by_name('DeviceModelName').get(),
+                            'width': cam.get_feature_by_name('WidthMax').get(),
+                            'height': cam.get_feature_by_name('HeightMax').get(),
+                            'channel': 1  # ToDo: channel count by pixel format
+                        })
 
         return devices
+
+    def vmb_pixel_format(self, cam):
+        with cam:
+            # print(cam.get_pixel_formats())
+            cv_fmts = intersect_pixel_formats(cam.get_pixel_formats(), OPENCV_PIXEL_FORMATS)
+            color_fmts = intersect_pixel_formats(cv_fmts, COLOR_PIXEL_FORMATS)
+
+            if color_fmts:
+                cam.set_pixel_format(color_fmts[0])
+            else:
+                mono_fmts = intersect_pixel_formats(cv_fmts, MONO_PIXEL_FORMATS)
+                if mono_fmts:
+                    cam.set_pixel_format(mono_fmts[0])
+                else:
+                    print('Camera does not support a OpenCV compatible image formats')
 
     def connect(self, dev):
         if self.connStatus:
@@ -97,20 +112,16 @@ class Cam(object):
 
                     if status:
                         # Try to adjust GeV packet size for GigE camera.
-                        try:
-                            self.cap.GVSPAdjustPacketSize.run()
+                        with self.cap:
+                            try:
+                                self.cap.GVSPAdjustPacketSize.run()
+                                while not self.cap.GVSPAdjustPacketSize.is_done():
+                                    pass
+                            except (AttributeError, VimbaFeatureError):
+                                print('Failed to adjust GeV packet size.')
 
-                            while not self.cap.GVSPAdjustPacketSize.is_done():
-                                pass
-                        except (AttributeError, VimbaFeatureError):
-                            print('Failed to adjust GeV packet size.')
-
-                        # Get pixel formats available in the camera
-                        # print(cap.get_pixel_formats())
-
-                        cv_fmts = intersect_pixel_formats(cap.get_pixel_formats(), OPENCV_PIXEL_FORMATS)
-                        color_fmts = intersect_pixel_formats(cv_fmts, COLOR_PIXEL_FORMATS)
-                        self.cap.set_pixel_format(color_fmts[0])
+                        # Set pixel format
+                        self.vmb_pixel_format(self.cap)
             else:
                 self.cap = None
 
@@ -145,11 +156,12 @@ class Cam(object):
             except:
                 pass
         elif self.provider == 'vimba':
-            try:
-                self.cap.start_streaming(handler=self.vmb_frame_handler, buffer_count=5)
-                self.streaming = True
-            except:
-                pass
+            with self.cap:
+                try:
+                    self.cap.start_streaming(handler=self.vmb_frame_handler, buffer_count=5)
+                    self.streaming = True
+                except:
+                    pass
 
     def stop_stream(self):
         if self.provider == 'opencv':
@@ -157,14 +169,18 @@ class Cam(object):
             self.camThread.join()
             self.streaming = False
         elif self.provider == 'vimba':
-            try:
-                self.cap.stop_streaming()
-                self.streaming = False
-            except:
-                pass
+            with self.cap:
+                try:
+                    self.cap.stop_streaming()
+                    self.streaming = False
+                except:
+                    pass
 
     def vmb_frame_handler(self, cam, frame):
-        cam.queue_frame(frame)
+        print('frame')
+        with cam:
+            cam.queue_frame(frame)
+
         self.updWiImage(frame.as_opencv_image())
 
     def opencv_capture(self):
@@ -186,10 +202,11 @@ class Cam(object):
                 if capture_success:
                     frame = self.camImg
             elif self.provider == 'vimba':
-                try:
-                    frame = self.cap.get_frame().as_opencv_image()
-                except:
-                    pass
+                with self.cap:
+                    try:
+                        frame = self.cap.get_frame().as_opencv_image()
+                    except:
+                        pass
 
             if streaming_state:
                 self.start_stream()
@@ -218,16 +235,18 @@ class Cam(object):
             elif self.provider == 'vimba':
                 if auto_adjust:
                     target_val = round(exposure * makoG234_auto_range)  # integer 0..100
-                    try:
-                        return self.cap.ExposureAutoTarget.set(target_val)
-                    except:
-                        return False
+                    with self.cap:
+                        try:
+                            return self.cap.ExposureAutoTarget.set(target_val)
+                        except:
+                            return False
                 else:
                     exp_val = round(makoG234_min_exposure * pow(10, exposure * makoG234_DR))  # in us
-                    try:
-                        return self.cap.ExposureTimeAbs.set(exp_val)
-                    except:
-                        return False
+                    with self.cap:
+                        try:
+                            return self.cap.ExposureTimeAbs.set(exp_val)
+                        except:
+                            return False
             else:
                 return False
         else:
@@ -243,10 +262,11 @@ class Cam(object):
                 return self.cap.set(cv2.CAP_PROP_GAIN, g_val)
             elif self.provider == 'vimba':
                 g_val = round(gain * makoG234_max_gain, 1)
-                try:
-                    return self.cap.Gain.set(g_val)
-                except:
-                    return False
+                with self.cap:
+                    try:
+                        return self.cap.Gain.set(g_val)
+                    except:
+                        return False
             else:
                 return False
         else:
@@ -258,14 +278,16 @@ class Cam(object):
                 return self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.5)
             elif self.provider == 'vimba':
                 if set_auto:
-                    try:
-                        return self.cap.ExposureAuto.set('Continuous')
-                    except:
-                        return False
+                    with self.cap:
+                        try:
+                            return self.cap.ExposureAuto.set('Continuous')
+                        except:
+                            return False
                 else:
-                    try:
-                        return self.cap.ExposureAuto.set('Off')
-                    except:
-                        return False
+                    with self.cap:
+                        try:
+                            return self.cap.ExposureAuto.set('Off')
+                        except:
+                            return False
         else:
             return False

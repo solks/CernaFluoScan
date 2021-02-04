@@ -16,14 +16,14 @@ class HardWare(object):
     def __init__(self, p):
         self.paramSet = p
 
-        stages = list(discover_stages())
-        for s in stages:
-            if s._port.serial_number == self.paramSet["Thorlabs"]["stageX"]:
-                self.mot.update({'X': s})
-            elif s._port.serial_number == self.paramSet["Thorlabs"]["stageY"]:
-                self.mot.update({'Y': s})
-            elif s._port.serial_number == self.paramSet["Thorlabs"]["stageZ"]:
-                self.mot.update({'Z': s})
+        # stages = list(discover_stages())
+        # for s in stages:
+        #     if s._port.serial_number == self.paramSet["Thorlabs"]["stageX"]:
+        #         self.mot.update({'X': s})
+        #     elif s._port.serial_number == self.paramSet["Thorlabs"]["stageY"]:
+        #         self.mot.update({'Y': s})
+        #     elif s._port.serial_number == self.paramSet["Thorlabs"]["stageZ"]:
+        #         self.mot.update({'Z': s})
 
         self.minStageStep = self.paramSet["Thorlabs"]["stageStep"]
 

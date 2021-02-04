@@ -3,7 +3,7 @@ from math import ceil
 import json
 
 import numpy as np
-import matplotlib.image as mpimg
+# import matplotlib.image as mpimg
 
 
 class SpectraModuleActions(object):
@@ -295,8 +295,9 @@ class SpectraModuleActions(object):
         # self.framedata = self.ccd.get_data()
         # self.framedata = np.random.randint(0, 150, (255, 1024), dtype=np.uint16)
 
-        data = mpimg.imread('ccd-frame2_bw.png') * 65536
-        self.framedata = np.dot(data[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint16)
+        # data = mpimg.imread('ccd-frame2_bw.png') * 65536
+        # self.framedata = np.dot(data[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint16)
+        pass
 
         # gray_color_table = [qRgb(i, i, i) for i in range(256)]
 

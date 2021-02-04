@@ -36,9 +36,9 @@
         "y-axis": 1,
         "binningAvg": false,
         "x-axis": 0,
-        "column": 139,
+        "column": 106,
         "binning": 0,
-        "row": 139
+        "row": 106
     },
     "windowSize": {
         "height": 960,
