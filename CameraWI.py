@@ -146,8 +146,7 @@ class CamWI(QFrame):
             self.camSelect.setCurrentIndex(dev_number)
             self.camFrame.getView().setLimits(xMin=0, xMax=self.cam.imageWidth, yMin=0, yMax=self.cam.imageHeight)
 
-            if success:
-                self.cam.start_stream()
+            if success and self.cam.start_stream():
                 self.capture = True
 
     def stop(self):
@@ -191,8 +190,8 @@ class CamWI(QFrame):
             self.paramSet['cam']['device'] = dev_number
             self.camSelect.setCurrentIndex(dev_number)
 
-        if self.capture:
-            self.cam.start_stream()
+            if self.capture:
+                self.cam.start_stream()
 
     def exposure_change(self, exposure):
         self.paramSet['cam']['exposure'] = exposure

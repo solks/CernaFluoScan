@@ -36,9 +36,9 @@
     "cooler": 1
   },
   "MDR-3": {
-    "WL-start": 4000,
-    "WL-end": 7000,
-    "grating-pos": 5000,
+    "WL-start": 400,
+    "WL-inc": 1,
+    "WL-pos": 500,
     "grating-select": 0
   },
   "Laser": {

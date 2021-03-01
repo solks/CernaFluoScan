@@ -7,12 +7,12 @@ class ScanModuleActions(object):
 
     _scanThread = False
 
-    def __init__(self, ui, p_set, hardware, ccd):
+    def __init__(self, ui, p_set, hardware, spectra_module):
 
         self.ui = ui
         self.paramSet = p_set
         self.hardware = hardware
-        self.ccd = ccd
+        self.spectraModule = spectra_module
 
         self.connect_events()
 
@@ -60,7 +60,7 @@ class ScanModuleActions(object):
         for action in scan_actions:
             if action['id'] == 1:
                 print('Take frame')
-    #           spectraModule.acquire()
+    #           self.spectraModule.acquire()
 
     def dim_scan(self, scan_set, scan_actions, seq_num=0):
         legend = ["X", "Y", "Z", "WL"]

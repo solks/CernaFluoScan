@@ -1,12 +1,17 @@
+import time
 from functools import partial
 from math import ceil
+from threading import Thread
 import json
 
 import numpy as np
-# import matplotlib.image as mpimg
+import matplotlib.image as mpimg
 
 
 class SpectraModuleActions(object):
+
+    ccdSize = 1024
+    spectraOverlap = 80
 
     def __init__(self, ui, p_set, hardware, ccd):
         self.columns = np.arange(1024)
@@ -24,7 +29,11 @@ class SpectraModuleActions(object):
         self.hardware = hardware
         self.ccd = ccd
 
+        self.monoThread = Thread()
+        self.mono_positions = [None]*self.paramSet['MDR-3']['WL-inc']
+
         self.connect_events()
+
 
     def connect_events(self):
         mf = self.mainform
@@ -57,9 +66,11 @@ class SpectraModuleActions(object):
 
         # Monochromator Actions
         mf.WLStart.editingFinished.connect(self.WL_start_change)
-        mf.WLStart.editingFinished.connect(self.WL_end_change)
-        mf.monoSetPos.clicked.connect(self.mono_move)
+        mf.WLEnd_dec.clicked.connect(self.WL_end_dec)
+        mf.WLEnd_inc.clicked.connect(self.WL_end_inc)
+        mf.monoSetPos.clicked.connect(self.mono_WL_set)
         mf.monoGridSelect.currentIndexChanged.connect(self.mono_grid_select)
+        mf.monoStartup.connect(self.mono_startup)
 
         # Andor actions
         mf.exposureTime.editingFinished.connect(self.exposure_change)
@@ -120,7 +131,7 @@ class SpectraModuleActions(object):
 
         if id == 0:
             # nm
-            central_WL = self.paramSet['MDR-3']['grating-pos']
+            central_WL = self.paramSet['MDR-3']['WL-pos']
             WL_range  = 250
             for i in self.columns:
                 self.coordinates[i] = central_WL + (i - 512) * WL_range / 1024.0
@@ -129,7 +140,7 @@ class SpectraModuleActions(object):
 
         elif id == 1:
             # eV
-            central_WL = self.paramSet['MDR-3']['grating-pos']
+            central_WL = self.paramSet['MDR-3']['WL-pos']
             WL_range = 250
             for i in self.columns:
                 self.coordinates[i] = 1239.84193 / (central_WL + (i - 512) * WL_range / 1024.0)
@@ -246,17 +257,70 @@ class SpectraModuleActions(object):
         # self.ccd.set_vsa_volt(vsa_idx)
 
     def WL_start_change(self):
-        val = self.mainform.WLStart.value()
-        self.paramSet['MDR-3']['WL-start'] = val
+        WL_start = self.mainform.WLStart.value()
+        self.paramSet['MDR-3']['WL-start'] = WL_start
 
-    def WL_end_change(self):
-        val = self.mainform.WLEnd.value()
-        self.paramSet['MDR-3']['WL-end'] = val
+        self.mono_positions[0] = self.hardware.mono_toSteps(WL_start)
+        if self.paramSet['MDR-3']['WL-inc'] > 1:
+            for i in range(1, self.paramSet['MDR-3']['WL-inc']):
+                WL_next = self.hardware.mono_toWL(self.mono_positions[i-1], self.ccdSize - self.spectraOverlap)
+                steps_next = self.hardware.mono_toSteps(WL_next)
+                self.mono_positions[i] = steps_next
+        WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdSize)
+        self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
 
-    def mono_move(self):
+    def WL_end_inc(self):
+        WL_inc = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdSize - self.spectraOverlap)
+        steps_inc = self.hardware.mono_toSteps(WL_inc)
+        self.mono_positions.append(steps_inc)
+        self.paramSet['MDR-3']['WL-inc'] += 1
+
+        WL_end = self.hardware.mono_toWL(steps_inc, self.ccdSize)
+        self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
+
+    def WL_end_dec(self):
+        if self.paramSet['MDR-3']['WL-inc'] > 1:
+            self.mono_positions.pop()
+            self.paramSet['MDR-3']['WL-inc'] -= 1
+
+            WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdSize)
+            self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
+
+    def mono_WL_set(self):
         pos = self.mainform.monoGridPos.value()
-        self.paramSet['MDR-3']['grating-pos'] = pos
+        self.paramSet['MDR-3']['WL-pos'] = pos
         # move ...
+        self.mainform.monoCurrentPos.setText(str(pos) + ' nm')
+
+    def mono_startup(self):
+        self.WL_start_change()
+        # check current monochromator position, update self.mainform.monoCurrentPos
+
+    def mono_run_calibration(self):
+        ans = self.hardware.mono_move_start()
+        if ans == 'OK':
+            while self.hardware.mono_status() == 'BUSY':
+                pos = self.hardware.mono_pos()
+                WL = self.hardware.mono_toWL0(pos)
+                # self.paramSet['MDR-3']['WL-pos'] = WL
+                # self.mainform.monoCurrentPos.setText(str(WL))
+                time.sleep(0.5)
+
+            if self.hardware.mono_status() == 'ERROR':
+                self.mainform.statusBar.showMessage('Monochromator Calibration Error...')
+            else:
+                pos = self.hardware.mono_pos()
+                WL = self.hardware.mono_toWL0(pos)
+                # self.paramSet['MDR-3']['WL-pos'] = WL
+                # self.mainform.monoCurrentPos.setText(str(WL))
+        elif ans == 'BUSY':
+            self.mainform.statusBar.showMessage('Monochromator is Busy. Please try again later.')
+        else:
+            self.mainform.statusBar.showMessage('Monochromator Connection Error...')
+
+    def mono_calibration(self):
+        self.monoThread = Thread(target=self.mono_run_calibration)
+        self.monoThread.start()
 
     def mono_grid_select(self, grid_idx):
         self.paramSet['MDR-3']['grating-select'] = grid_idx
@@ -295,9 +359,8 @@ class SpectraModuleActions(object):
         # self.framedata = self.ccd.get_data()
         # self.framedata = np.random.randint(0, 150, (255, 1024), dtype=np.uint16)
 
-        # data = mpimg.imread('ccd-frame2_bw.png') * 65536
-        # self.framedata = np.dot(data[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint16)
-        pass
+        data = mpimg.imread('ccd-frame2_bw.png') * 65536
+        self.framedata = np.dot(data[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint16)
 
         # gray_color_table = [qRgb(i, i, i) for i in range(256)]
 

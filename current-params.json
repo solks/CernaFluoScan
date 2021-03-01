@@ -35,9 +35,9 @@
     "frameSet": {
         "y-axis": 1,
         "binningAvg": false,
-        "x-axis": 0,
+        "x-axis": 2,
         "column": 106,
-        "binning": 0,
+        "binning": 2,
         "row": 106
     },
     "windowSize": {
@@ -75,9 +75,9 @@
         "source-id": 0
     },
     "MDR-3": {
-        "WL-start": 4000.0,
-        "WL-end": 7000.0,
-        "grating-pos": 4000.0,
+        "WL-start": 500.0,
+        "WL-inc": 4,
+        "WL-pos": 400.0,
         "grating-select": 1
     },
     "scanSet": {

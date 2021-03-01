@@ -1,8 +1,8 @@
 from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy,
-                             QPushButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QRadioButton,
-                             QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView,
-                             QTabWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView)
-from PyQt5.QtCore import Qt, QRectF, QLineF, QPointF
+                             QPushButton, QToolButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
+                             QRadioButton, QLineEdit, QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem,
+                             QHeaderView, QTabWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView)
+from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
 
 import pyqtgraph as pg
@@ -11,11 +11,13 @@ from WidgetsUI import CrossCursor
 
 
 class SpectraModuleUI(QWidget):
+    monoStartup = pyqtSignal()
 
-    def __init__(self, cam_wi):
+    def __init__(self, cam_wi, status_bar):
         super().__init__()
 
         self.CameraWI = cam_wi
+        self.statusBar = status_bar
 
         self.ui_construct()
 
@@ -49,10 +51,10 @@ class SpectraModuleUI(QWidget):
         self.step_val.setCurrentText(str(stage['step']))
 
         self.WLStart.setValue(mono['WL-start'])
-        self.WLEnd.setValue(mono['WL-end'])
-        self.monoGridPos.setValue(mono['grating-pos'])
-        self.monoCurrentPos.setText(str(mono['grating-pos']) + ' Å')
+        self.monoGridPos.setValue(mono['WL-pos'])
+        self.monoCurrentPos.setText(str(mono['WL-pos']) + ' nm')
         self.monoGridSelect.setCurrentIndex(mono['grating-select'])
+        self.monoStartup.emit()
 
         self.laserSelect.setCurrentIndex(laser['source-id'])
 
@@ -133,11 +135,15 @@ class SpectraModuleUI(QWidget):
         # --- Controls frame ---
 
         self.monoGridPos = QDoubleSpinBox(self)
-        self.monoGridPos.setRange(2000.0, 10000.0)
+        self.monoGridPos.setRange(200.0, 1000.0)
         self.monoGridPos.setSingleStep(0.1)
         self.monoGridPos.setDecimals(1)
         self.monoSetPos = QPushButton('Set')
         self.monoSetPos.setMinimumSize(90, 30)
+        self.monoCalibrate = QPushButton('Calibration')
+        self.monoCalibrate.setMinimumSize(90, 30)
+        self.monoStop = QPushButton('Stop')
+        self.monoStop.setMinimumSize(90, 30)
         self.monoCurrentPos = QLabel('5000 Å')
         mono_pos_lbl = QLabel('Current position: ')
         self.monoGridSelect = QComboBox(self)
@@ -205,10 +211,12 @@ class SpectraModuleUI(QWidget):
         mono_control_lay = QGridLayout(mono_control_group)
         mono_control_lay.addWidget(self.monoGridPos, 0, 0)
         mono_control_lay.addWidget(self.monoSetPos, 0, 1)
-        mono_control_lay.addWidget(mono_pos_lbl, 1, 0)
-        mono_control_lay.addWidget(self.monoCurrentPos, 1, 1)
-        mono_control_lay.addWidget(mono_grid_lbl, 2, 0)
-        mono_control_lay.addWidget(self.monoGridSelect, 2, 1)
+        mono_control_lay.addWidget(self.monoCalibrate, 1, 0)
+        mono_control_lay.addWidget(self.monoStop, 1, 1)
+        mono_control_lay.addWidget(mono_pos_lbl, 2, 0)
+        mono_control_lay.addWidget(self.monoCurrentPos, 2, 1)
+        mono_control_lay.addWidget(mono_grid_lbl, 3, 0)
+        mono_control_lay.addWidget(self.monoGridSelect, 3, 1)
 
         light_source_group = QGroupBox('Light source')
         light_source_group.setAlignment(Qt.AlignCenter)
@@ -347,19 +355,24 @@ class SpectraModuleUI(QWidget):
         # --- Experiment Details, Andor Camera Settings ---
 
         self.WLStart = QDoubleSpinBox(self)
-        self.WLStart.setRange(2000.0, 10000.0)
+        self.WLStart.setRange(200.0, 1000.0)
         self.WLStart.setSingleStep(0.1)
         self.WLStart.setDecimals(1)
-        self.WLEnd = QDoubleSpinBox(self)
-        self.WLEnd.setRange(2000.0, 10000.0)
-        self.WLEnd.setSingleStep(0.1)
-        self.WLEnd.setDecimals(1)
+        self.WLEnd = QLineEdit(self)
+        self.WLEnd.setReadOnly(True)
+        self.WLEnd_dec = QPushButton('<')
+        self.WLEnd_inc = QPushButton('>')
+        self.WLEnd_dec.setStyleSheet('QPushButton {min-width: 20px;}')
+        self.WLEnd_inc.setStyleSheet('QPushButton {min-width: 20px;}')
+        WL_range_lbl = QLabel('—')
 
         WL_range_group = QGroupBox("Wavelength range")
         WL_range_lay = QHBoxLayout(WL_range_group)
-        WL_range_lay.addWidget(self.WLStart)
-        WL_range_lay.addSpacing(40)
-        WL_range_lay.addWidget(self.WLEnd)
+        WL_range_lay.addWidget(self.WLStart, 5)
+        WL_range_lay.addWidget(WL_range_lbl, 1)
+        WL_range_lay.addWidget(self.WLEnd, 5)
+        WL_range_lay.addWidget(self.WLEnd_dec, 1)
+        WL_range_lay.addWidget(self.WLEnd_inc, 1)
 
         self.exposureTime = QDoubleSpinBox(self)
         self.exposureTime.setRange(0.01, 1000.0)

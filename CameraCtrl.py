@@ -68,6 +68,17 @@ class Cam(object):
 
         return devices
 
+    def vmb_setup_camera(self, cam: Camera):
+        with cam:
+            try:
+                cam.GVSPAdjustPacketSize.run()
+
+                while not cam.GVSPAdjustPacketSize.is_done():
+                    pass
+
+            except (AttributeError, VimbaFeatureError):
+                pass
+
     def vmb_pixel_format(self, cam):
         with cam:
             # print(cam.get_pixel_formats())
@@ -103,23 +114,15 @@ class Cam(object):
                     # print(cap.get(cv2.CAP_PROP_AUTO_EXPOSURE))
             elif provider == 'vimba':
                 with Vimba.get_instance() as vimba:
-                    status = True
                     try:
                         self.cap = vimba.get_camera_by_id(dev_id)
+                        status = True
                     except VimbaCameraError:
                         print('Failed to access Camera. Abort.')
-                        status = False
 
                     if status:
                         # Try to adjust GeV packet size for GigE camera.
-                        with self.cap:
-                            try:
-                                self.cap.GVSPAdjustPacketSize.run()
-                                while not self.cap.GVSPAdjustPacketSize.is_done():
-                                    pass
-                            except (AttributeError, VimbaFeatureError):
-                                print('Failed to adjust GeV packet size.')
-
+                        self.vmb_setup_camera(self.cap)
                         # Set pixel format
                         self.vmb_pixel_format(self.cap)
             else:
@@ -146,42 +149,38 @@ class Cam(object):
         self.connStatus = False
 
     def start_stream(self):
-        if self.provider == 'opencv':
-            self.stop_event.clear()
-            if not self.camThread.is_alive():
+        self.stop_event.clear()
+        if not self.camThread.is_alive():
+            if self.provider == 'opencv':
                 self.camThread = Thread(target=self.opencv_capture)
-            try:
-                self.camThread.start()
-                self.streaming = True
-            except:
-                pass
-        elif self.provider == 'vimba':
-            with self.cap:
-                try:
-                    self.cap.start_streaming(handler=self.vmb_frame_handler, buffer_count=5)
-                    self.streaming = True
-                except:
-                    pass
+            elif self.provider == 'vimba':
+                self.camThread = Thread(target=self.vmb_capture)
+            else:
+                return False
+
+        try:
+            self.camThread.start()
+            self.streaming = True
+        except:
+            return False
 
     def stop_stream(self):
-        if self.provider == 'opencv':
-            self.stop_event.set()
-            self.camThread.join()
-            self.streaming = False
-        elif self.provider == 'vimba':
+        self.stop_event.set()
+        self.camThread.join()
+        self.streaming = False
+
+    def vmb_capture(self):
+        with Vimba.get_instance():
             with self.cap:
+                vimba_frame_handler = FrameHandler(self.updWiImage)
                 try:
-                    self.cap.stop_streaming()
-                    self.streaming = False
+                    self.cap.start_streaming(handler=vimba_frame_handler, buffer_count=5)
+                    self.stop_event.wait()
                 except:
-                    pass
+                    print('Vimba streaming error')
+                finally:
+                    self.cap.stop_streaming()
 
-    def vmb_frame_handler(self, cam, frame):
-        print('frame')
-        with cam:
-            cam.queue_frame(frame)
-
-        self.updWiImage(frame.as_opencv_image())
 
     def opencv_capture(self):
         while not self.stop_event.is_set():
@@ -291,3 +290,17 @@ class Cam(object):
                             return False
         else:
             return False
+
+
+class FrameHandler:
+    def __init__(self, callback):
+        self.pushImage = callback
+        self.shutdown_event = Event()
+
+    def __call__(self, cam: Camera, frame: Frame):
+        print('frame')
+        if frame.get_status() == FrameStatus.Complete:
+            print('{} acquired {}'.format(cam, frame), flush=True)
+            self.pushImage(frame.as_opencv_image())
+
+        cam.queue_frame(frame)

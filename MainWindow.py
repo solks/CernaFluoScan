@@ -65,13 +65,13 @@ class AppWindow(QMainWindow):
         self.CameraSc = CamWI(self.paramSet)
 
         # Module for spectrum acquisition
-        self.spectraModule = SpectraModuleUI(self.CameraSp)
-        self.spectraModule.setFocus()
+        self.spectraModuleUI = SpectraModuleUI(self.CameraSp, self.statusBar())
+        self.spectraModuleUI.setFocus()
         self.CameraSp.run()
         # Module for scanning
-        self.scanModule = ScanModuleUI(self.CameraSc)
+        self.scanModuleUI = ScanModuleUI(self.CameraSc, self.statusBar())
         # Module for analysis data
-        self.analysisModule = QWidget()
+        self.analysisModuleUI = QWidget()
 
         self.setWindowTitle('CernaFluoScan')
         self.statusBar().showMessage("Cerna Fluorescence Scan Microscope control")
@@ -83,18 +83,18 @@ class AppWindow(QMainWindow):
         self.fileMenu.addAction('&Quit', self.file_quit, Qt.CTRL + Qt.Key_Q)
         self.helpMenu.addAction('&About', self.about)
 
-        self.mainWidget.addTab(self.spectraModule, "Spectrum Acquisition Module")
-        self.mainWidget.addTab(self.scanModule, "Scan Module")
-        self.mainWidget.addTab(self.analysisModule, "Analysis Module")
+        self.mainWidget.addTab(self.spectraModuleUI, "Spectrum Acquisition Module")
+        self.mainWidget.addTab(self.scanModuleUI, "Scan Module")
+        self.mainWidget.addTab(self.analysisModuleUI, "Analysis Module")
 
     def actions_init(self):
         self.mainWidget.currentChanged.connect(self.tab_chenge)
 
-        self.spectraActions = SpectraModuleActions(self.spectraModule, self.paramSet, self.hardware, self.ccd)
-        self.spectraModule.init_parameters(self.paramSet)
+        self.spectraModule = SpectraModuleActions(self.spectraModuleUI, self.paramSet, self.hardware, self.ccd)
+        self.spectraModuleUI.init_parameters(self.paramSet)
 
-        self.scanActions = ScanModuleActions(self.scanModule, self.paramSet, self.hardware, self.ccd)
-        self.scanModule.init_parameters(self.paramSet)
+        self.scanModule = ScanModuleActions(self.scanModuleUI, self.paramSet, self.hardware, self.spectraModule)
+        self.scanModuleUI.init_parameters(self.paramSet)
 
     def tab_chenge(self, idx):
         if idx == 0:
@@ -112,7 +112,7 @@ class AppWindow(QMainWindow):
         # self.ccd.shut_down()
 
         print('Stopping processes...')
-        self.scanActions.stop_threads()
+        self.scanModule.stop_threads()
         self.CameraSp.shut_down()
         self.CameraSc.shut_down()
 
@@ -135,10 +135,10 @@ class AppWindow(QMainWindow):
 
     def about(self):
         QMessageBox.about(self.mainWidget, "About",
-"""Cerna Fluorescence Scan Microscope & MDR-3 
+"""Cerna Fluorescence Scan Microscope & MDR-3
 control software.
-            
-Developers: 
+
+Developers:
 Oleksandr Stanovyi, astanovyi@gmail.com
 
 Source code:
