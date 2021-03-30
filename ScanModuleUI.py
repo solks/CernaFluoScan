@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy, QTabWidget
                              QAbstractItemView)
 from PyQt5.QtCore import Qt, QDir, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
-from WidgetsUI import VTabBar, PgImageView
+from WidgetsUI import VTabBar, PgGraphicsView
 
 import pyqtgraph as pg
 
@@ -78,9 +78,7 @@ class ScanModuleUI(QWidget):
 
         # Scan map layout
 
-        self.mapFrame = PgImageView()
-        self.map = pg.ImageItem()
-        self.mapFrame.addItem(self.map)
+        self.mapFrame = PgGraphicsView(smap)
 
         map_lay = QGridLayout(smap)
         map_lay.addWidget(self.mapFrame)

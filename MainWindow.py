@@ -11,6 +11,7 @@ from CameraWI import CamWI
 from WidgetsUI import VTabBar
 from HardWareCtrl import HardWare
 from AndorCtrl import AndorCCD
+from CameraCtrl import Cam
 
 class AppWindow(QMainWindow):
 
@@ -60,16 +61,17 @@ class AppWindow(QMainWindow):
         self.fileMenu = QMenu('&File', self)
         self.helpMenu = QMenu('&Help', self)
 
+        # Camera control module
+        self.CamCrtl = Cam()
         # Camera widget
-        self.CameraSp = CamWI(self.paramSet)
-        self.CameraSc = CamWI(self.paramSet)
+        self.CameraSpWI = CamWI(self.CamCrtl, self.paramSet, True)
+        self.CameraScWI = CamWI(self.CamCrtl, self.paramSet, False)
 
         # Module for spectrum acquisition
-        self.spectraModuleUI = SpectraModuleUI(self.CameraSp, self.statusBar())
+        self.spectraModuleUI = SpectraModuleUI(self.CameraSpWI, self.statusBar())
         self.spectraModuleUI.setFocus()
-        self.CameraSp.run()
         # Module for scanning
-        self.scanModuleUI = ScanModuleUI(self.CameraSc, self.statusBar())
+        self.scanModuleUI = ScanModuleUI(self.CameraScWI, self.statusBar())
         # Module for analysis data
         self.analysisModuleUI = QWidget()
 
@@ -98,14 +100,18 @@ class AppWindow(QMainWindow):
 
     def tab_chenge(self, idx):
         if idx == 0:
-            self.CameraSc.stop()
-            self.CameraSp.run()
+            self.CameraSpWI.set_wi_params()
+            self.CameraSpWI.set_cam_controls()
+            self.CameraScWI.active = False
+            self.CameraSpWI.active = True
         elif idx == 1:
-            self.CameraSp.stop()
-            self.CameraSc.run()
+            self.CameraScWI.set_wi_params()
+            self.CameraScWI.set_cam_controls()
+            self.CameraSpWI.active = False
+            self.CameraScWI.active = True
         elif idx == 2:
-            self.CameraSp.stop()
-            self.CameraSc.stop()
+            self.CameraSpWI.active = False
+            self.CameraScWI.active = False
 
     def shut_down(self):
         print('Shutting down the Andor CCD...')
@@ -113,8 +119,8 @@ class AppWindow(QMainWindow):
 
         print('Stopping processes...')
         self.scanModule.stop_threads()
-        self.CameraSp.shut_down()
-        self.CameraSc.shut_down()
+        self.CameraSpWI.shut_down()
+        self.CameraScWI.shut_down()
 
         print('Save parameters...')
         with open('current-params.json', 'w') as f:
@@ -144,5 +150,5 @@ Oleksandr Stanovyi, astanovyi@gmail.com
 Source code:
 https://github.com/solks/CernaFluoScan
 
-© Copyright 2019"""
+© Copyright 2019-2021"""
                           )

@@ -14,26 +14,30 @@ class VTabBar(QTabBar):
         return QSize(size.width(), h)
 
 
-class PgImageView(pg.ImageView):
+class PgGraphicsView(pg.GraphicsView):
     def __init__(self, parent=None):
-        pg.setConfigOptions(background=pg.mkColor('#29353D'))
+        super().__init__(parent, useOpenGL=False, background=pg.mkColor('#29353D'))
+
         pg.setConfigOptions(imageAxisOrder='row-major')
-        pg.ImageView.__init__(self, parent)
+
+        self.vb = pg.ViewBox()
+        self.setCentralItem(self.vb)
+
+        self.image = pg.ImageItem()
+        self.vb.addItem(self.image)
 
         self.init_ui()
 
     def init_ui(self):
-        # self.getView().setLimits(xMin=0, xMax=640, yMin=0, yMax=480)
+        self.vb.setMenuEnabled(False)
+        self.vb.setAspectLocked()
+        self.vb.enableAutoRange()
 
         size_policy = QSizePolicy()
         size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
         size_policy.setVerticalPolicy(QSizePolicy.Expanding)
         self.setSizePolicy(size_policy)
         self.setMinimumSize(512, 512)
-        self.ui.histogram.hide()
-        self.ui.roiBtn.hide()
-        self.ui.menuBtn.hide()
-        self.getView().setMenuEnabled(False)
 
 
 class CrossCursor(pg.InfiniteLine):

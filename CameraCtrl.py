@@ -1,35 +1,32 @@
 import time
+
+from threading import Event
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, QObject
+
 import cv2
 import numpy as np
 
-from threading import Thread, Event
 from vimba import *
 
 
-class Cam(object):
-    connStatus = False
-    streaming = False
+class Cam(QObject):
+
+    ctrl = None
 
     capDevices = []
-    dev_number = 0
-
-    provider = 'opencv'
 
     imageWidth = 100
     imageHeight = 100
     imageChannel = 1
 
-    def __init__(self, callback, dev=0):
+    frameAcquired = pyqtSignal(np.ndarray)
+    devStarted = pyqtSignal()
 
-        self.cap = None
-
-        self.updWiImage = callback
+    def __init__(self):
+        super().__init__()
 
         self.capDevices = self.test_devices()
-        self.camImg = np.zeros((self.imageHeight, self.imageWidth, self.imageChannel), np.ubyte)
-
-        self.stop_event = Event()
-        self.camThread = Thread()
+        # self.camImg = np.zeros((self.imageHeight, self.imageWidth, self.imageChannel), np.ubyte)
 
     def test_devices(self):
         devices = []
@@ -68,8 +65,64 @@ class Cam(object):
 
         return devices
 
-    def vmb_setup_camera(self, cam: Camera):
+    def connect(self, dev):
+        if len(self.capDevices) > 0:
+            if dev > len(self.capDevices)-1:
+                dev = 0
+
+            dev_id = self.capDevices[dev]['deviceID']
+            provider = self.capDevices[dev]['provider']
+
+            if provider == 'vimba':
+                self.ctrl = VimbaCam(dev_id, self.frameAcquired, self.devStarted)
+            elif provider == 'opencv':
+                self.ctrl = OpencvCam(dev_id, self.frameAcquired, self.devStarted)
+            else:
+                return False, dev
+
+            if self.ctrl.connStatus:
+                self.imageWidth = self.capDevices[dev]['width']
+                self.imageHeight = self.capDevices[dev]['height']
+                self.imageChannel = self.capDevices[dev]['channel']
+
+            return self.ctrl.connStatus, dev
+        else:
+            return False, dev
+
+    def disconnect(self):
+        if self.ctrl is not None:
+            self.ctrl.disconnect()
+
+
+class VimbaCam(QObject):
+
+    connStatus = False
+    streaming = False
+
+    def __init__(self, dev_id, frame_acquired, dev_started):
+        super().__init__()
+
+        self.frameAcquiredSig = frame_acquired
+        self.devStartedSig = dev_started
+
+        with Vimba.get_instance() as vimba:
+            try:
+                self.cap = vimba.get_camera_by_id(dev_id)
+                self.connStatus = True
+            except VimbaCameraError:
+                print('Failed to access Camera. Abort.')
+
+            if self.connStatus:
+                self.camThread = VimbaStream(self.cap, self.frameAcquiredSig, self.devStartedSig)
+
+                # Setup camera.
+                self.setup_camera(self.cap)
+                # Set pixel format
+                self.pixel_format(self.cap)
+
+    def setup_camera(self, cam: Camera):
         with cam:
+            # Try to adjust GeV packet size for GigE camera.
             try:
                 cam.GVSPAdjustPacketSize.run()
 
@@ -79,7 +132,7 @@ class Cam(object):
             except (AttributeError, VimbaFeatureError):
                 pass
 
-    def vmb_pixel_format(self, cam):
+    def pixel_format(self, cam):
         with cam:
             # print(cam.get_pixel_formats())
             cv_fmts = intersect_pixel_formats(cam.get_pixel_formats(), OPENCV_PIXEL_FORMATS)
@@ -94,87 +147,114 @@ class Cam(object):
                 else:
                     print('Camera does not support a OpenCV compatible image formats')
 
-    def connect(self, dev):
+    def get_frame(self):
         if self.connStatus:
-            self.disconnect()
-
-        status = False
-        if len(self.capDevices) > 0:
-            if dev > len(self.capDevices)-1:
-                dev = 0
-
-            dev_id = self.capDevices[dev]['deviceID']
-            provider = self.capDevices[dev]['provider']
-
-            if provider == 'opencv':
-                self.cap = cv2.VideoCapture(dev_id)
-                if self.cap.isOpened():
-                    status = True
-                    # print(cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.5))
-                    # print(cap.get(cv2.CAP_PROP_AUTO_EXPOSURE))
-            elif provider == 'vimba':
-                with Vimba.get_instance() as vimba:
+            if not self.streaming:
+                with self.cap:
                     try:
-                        self.cap = vimba.get_camera_by_id(dev_id)
-                        status = True
-                    except VimbaCameraError:
-                        print('Failed to access Camera. Abort.')
-
-                    if status:
-                        # Try to adjust GeV packet size for GigE camera.
-                        self.vmb_setup_camera(self.cap)
-                        # Set pixel format
-                        self.vmb_pixel_format(self.cap)
-            else:
-                self.cap = None
-
-            if status:
-                self.connStatus = status
-                self.dev_number = dev
-                self.provider = self.capDevices[self.dev_number]['provider']
-                self.imageWidth = self.capDevices[self.dev_number]['width']
-                self.imageHeight = self.capDevices[self.dev_number]['height']
-                self.imageChannel = self.capDevices[self.dev_number]['channel']
-
-        return status, self.dev_number
-
-    def disconnect(self):
-        if self.streaming:
-            self.stop_stream()
-
-        if self.provider == 'opencv':
-            if self.cap.isOpened():
-                self.cap.release()
-
-        self.connStatus = False
-
-    def start_stream(self):
-        self.stop_event.clear()
-        if not self.camThread.is_alive():
-            if self.provider == 'opencv':
-                self.camThread = Thread(target=self.opencv_capture)
-            elif self.provider == 'vimba':
-                self.camThread = Thread(target=self.vmb_capture)
+                        return self.cap.get_frame().as_opencv_image()
+                    except:
+                        return False
             else:
                 return False
 
-        try:
-            self.camThread.start()
-            self.streaming = True
-        except:
+    def set_exposure(self, exposure, auto_adjust=False):
+        # exposure: float, range 0..1
+        # auto_adjust: True if brightness auto adjusting activated
+
+        makoG234_min_exposure = 73.544  # in useconds
+        makoG234_DR = 6
+        makoG234_auto_range = 100
+
+        if self.connStatus:
+            if auto_adjust:
+                target_val = round(exposure * makoG234_auto_range)  # integer 0..100
+                with self.cap:
+                    try:
+                        return self.cap.ExposureAutoTarget.set(target_val)
+                    except:
+                        return False
+            else:
+                exp_val = round(makoG234_min_exposure * pow(10, exposure * makoG234_DR))  # in us
+                with self.cap:
+                    try:
+                        return self.cap.ExposureTimeAbs.set(exp_val)
+                    except:
+                        return False
+        else:
             return False
 
-    def stop_stream(self):
-        self.stop_event.set()
-        self.camThread.join()
-        self.streaming = False
+    def set_gain(self, gain):
+        # gain: float, range 0..1
 
-    def vmb_capture(self):
+        makoG234_max_gain = 40
+
+        if self.connStatus:
+            g_val = round(gain * makoG234_max_gain, 1)
+            with self.cap:
+                try:
+                    return self.cap.Gain.set(g_val)
+                except:
+                    return False
+        else:
+            return False
+
+    def set_auto_exposure(self, set_auto=False):
+        if self.connStatus:
+            with self.cap:
+                try:
+                    if set_auto:
+                        return self.cap.ExposureAuto.set('Continuous')
+                    else:
+                        return self.cap.ExposureAuto.set('Off')
+                except:
+                    return False
+        else:
+            return False
+
+    def start_streaming(self):
+        if self.connStatus:
+            self.camThread.start()
+            self.streaming = True
+
+        return self.streaming
+
+    def stop_streaming(self):
+        if self.connStatus:
+            self.camThread.stop_event.set()
+            self.streaming = False
+
+        return self.streaming
+
+    def disconnect(self):
+        if self.streaming:
+            self.stop_streaming()
+
+        self.connStatus = False
+
+
+class VimbaStream(QThread):
+
+    stop_event = Event()
+
+    def __init__(self, cap, frame_acquired, stream_started):
+        super().__init__()
+        self.cap = cap
+        self.frameAcquired = frame_acquired
+        self.streamStarted = stream_started
+
+    def frame_handler(self, cam: Camera, frame: Frame):
+        if frame.get_status() == FrameStatus.Complete:
+            self.frameAcquired.emit(frame.as_opencv_image())
+
+        cam.queue_frame(frame)
+
+    def run(self):
         with Vimba.get_instance():
             with self.cap:
-                vimba_frame_handler = FrameHandler(self.updWiImage)
                 try:
-                    self.cap.start_streaming(handler=vimba_frame_handler, buffer_count=5)
+                    self.cap.start_streaming(self.frame_handler, buffer_count=5)
+                    self.streamStarted.emit()
                     self.stop_event.wait()
                 except:
                     print('Vimba streaming error')
@@ -182,35 +262,35 @@ class Cam(object):
                     self.cap.stop_streaming()
 
 
-    def opencv_capture(self):
-        while not self.stop_event.is_set():
-            capture_success, self.camImg = self.cap.read()
-            self.updWiImage(self.camImg)
-            time.sleep(0.05)
+class OpencvCam(QObject):
 
-    def get_frame(self):
-        frame = None
-        streaming_state = self.streaming
+    connStatus = False
+    streaming = False
+
+    def __init__(self, dev_id, frame_acquired, dev_started):
+        super().__init__()
+
+        self.frameAcquiredSig = frame_acquired
+        self.devStartedSig = dev_started
+
+        self.cap = cv2.VideoCapture(dev_id)
+        if self.cap.isOpened():
+            self.connStatus = True
 
         if self.connStatus:
-            if streaming_state:
-                self.stop_stream()
+            self.camThread = OpencvStream(self.cap, self.frameAcquiredSig, self.devStartedSig)
 
-            if self.provider == 'opencv':
-                capture_success, self.camImg = self.cap.read()
-                if capture_success:
-                    frame = self.camImg
-            elif self.provider == 'vimba':
+    def get_frame(self):
+        if self.connStatus:
+            if not self.streaming:
                 with self.cap:
                     try:
-                        frame = self.cap.get_frame().as_opencv_image()
+                        capture_success, frame = self.cap.read()
+                        return frame
                     except:
-                        pass
-
-            if streaming_state:
-                self.start_stream()
-
-        return frame
+                        return False
+            else:
+                return False
 
     def set_exposure(self, exposure, auto_adjust=False):
         # exposure: float, range 0..1
@@ -218,89 +298,76 @@ class Cam(object):
 
         default_min_exposure = 1  # in ms
         default_DR = 4
-        makoG234_min_exposure = 73.544  # in useconds
-        makoG234_DR = 6
         default_auto_range = 1
-        makoG234_auto_range = 100
 
         if self.connStatus:
-            if self.provider == 'opencv':
-                if auto_adjust:
-                    target_val = exposure * default_auto_range  # float 0..1
-                    return self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, target_val)
-                else:
-                    exp_val = round(default_min_exposure * pow(10, exposure * default_DR))  # in ms
-                    return self.cap.set(cv2.CAP_PROP_EXPOSURE, exp_val)
-            elif self.provider == 'vimba':
-                if auto_adjust:
-                    target_val = round(exposure * makoG234_auto_range)  # integer 0..100
-                    with self.cap:
-                        try:
-                            return self.cap.ExposureAutoTarget.set(target_val)
-                        except:
-                            return False
-                else:
-                    exp_val = round(makoG234_min_exposure * pow(10, exposure * makoG234_DR))  # in us
-                    with self.cap:
-                        try:
-                            return self.cap.ExposureTimeAbs.set(exp_val)
-                        except:
-                            return False
+            if auto_adjust:
+                target_val = exposure * default_auto_range  # float 0..1
+                return self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, target_val)
             else:
-                return False
+                exp_val = round(default_min_exposure * pow(10, exposure * default_DR))  # in ms
+                return self.cap.set(cv2.CAP_PROP_EXPOSURE, exp_val)
         else:
             return False
 
     def set_gain(self, gain):
         # gain: float, range 0..1
+
         default_max_gain = 5
-        makoG234_max_gain = 40
+
         if self.connStatus:
-            if self.provider == 'opencv':
-                g_val = round(gain * default_max_gain)
-                return self.cap.set(cv2.CAP_PROP_GAIN, g_val)
-            elif self.provider == 'vimba':
-                g_val = round(gain * makoG234_max_gain, 1)
-                with self.cap:
-                    try:
-                        return self.cap.Gain.set(g_val)
-                    except:
-                        return False
-            else:
-                return False
+            g_val = round(gain * default_max_gain)
+            return self.cap.set(cv2.CAP_PROP_GAIN, g_val)
         else:
             return False
 
     def set_auto_exposure(self, set_auto=False):
         if self.connStatus:
-            if self.provider == 'opencv':
+            if set_auto:
                 return self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.5)
-            elif self.provider == 'vimba':
-                if set_auto:
-                    with self.cap:
-                        try:
-                            return self.cap.ExposureAuto.set('Continuous')
-                        except:
-                            return False
-                else:
-                    with self.cap:
-                        try:
-                            return self.cap.ExposureAuto.set('Off')
-                        except:
-                            return False
+            else:
+                pass
         else:
             return False
 
+    def start_streaming(self):
+        if self.connStatus:
+            self.camThread.start()
+            self.streaming = True
 
-class FrameHandler:
-    def __init__(self, callback):
-        self.pushImage = callback
-        self.shutdown_event = Event()
+        return self.streaming
 
-    def __call__(self, cam: Camera, frame: Frame):
-        print('frame')
-        if frame.get_status() == FrameStatus.Complete:
-            print('{} acquired {}'.format(cam, frame), flush=True)
-            self.pushImage(frame.as_opencv_image())
+    def stop_streaming(self):
+        if self.connStatus:
+            self.camThread.stop_event.set()
+            self.streaming = False
 
-        cam.queue_frame(frame)
+        return self.streaming
+
+    def disconnect(self):
+        if self.streaming:
+            self.stop_streaming()
+
+        self.cap.release()
+
+        self.connStatus = False
+
+
+class OpencvStream(QThread):
+
+    stop_event = Event()
+
+    def __init__(self, cap, frame_acquired, stream_started):
+        super().__init__()
+        self.cap = cap
+
+        self.frameAcquired = frame_acquired
+        self.streamStarted = stream_started
+
+    def run(self):
+        self.streamStarted.emit()
+        while not self.stop_event.is_set():
+            status, frame = self.cap.read()
+            if status:
+                self.frameAcquired.emit(frame)
+            time.sleep(0.05)

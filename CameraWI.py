@@ -6,21 +6,17 @@ from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy, QTabWidget
 from PyQt5.QtCore import Qt, QDir
 
 from os import path, makedirs, listdir
-import threading
 import time
 import datetime
 import numpy as np
 import re
 import cv2
-from pyqtgraph import ImageItem
-from WidgetsUI import PgImageView
-
-from CameraCtrl import Cam
+from WidgetsUI import PgGraphicsView
 
 
 class CamWI(QFrame):
 
-    capture = False
+    active = False
 
     hFlip = False
     vFlip = False
@@ -28,39 +24,32 @@ class CamWI(QFrame):
     addPrimitives = False
     primitives = []
 
+    saveFrame = False
+    file_idx = None
+    path = ''
+
     alpha = 0.4
 
-    def __init__(self, p_set):
+    def __init__(self, cam, p_set, activate):
         super().__init__()
 
         self.paramSet = p_set
 
+        self.active = activate
+
         self.ui_construct()
 
-        self.cam = Cam(self.update_image, self.paramSet['cam']['device'])
+        self.cam = cam
         # self.camData = np.zeros((self.cam.imageHeight, self.cam.imageWidth, self.cam.imageChannel), np.ubyte)
 
-        self.fill_cam_list(self.cam.capDevices, self.paramSet['cam']['device'])
-
         self.connect_events()
-        self.init_parameters()
-
-    def init_parameters(self):
-        cam_params = self.paramSet['cam']
-
-        self.autoExposure.setChecked(cam_params['autoExp'])
-        self.exposure.setSliderPosition(cam_params['exposure'])
-        self.gain.setSliderPosition(cam_params['gain'])
-        self.flipH.setChecked(cam_params['hFlip'])
-        self.flipV.setChecked(cam_params['vFlip'])
-
-        if cam_params['savePath'] != '':
-            self.dstPath.setText(cam_params['savePath'])
-        else:
-            self.dstPath.setText(QDir.currentPath())
+        self.set_wi_params()
 
     def connect_events(self):
         self.camSelect.currentIndexChanged.connect(self.device_select)
+
+        self.cam.frameAcquired.connect(self.update_frame)
+        self.cam.devStarted.connect(self.set_cam_controls)
 
         self.exposure.valueChanged.connect(self.exposure_change)
         self.gain.valueChanged.connect(self.gain_change)
@@ -71,16 +60,33 @@ class CamWI(QFrame):
         self.chooseDst.clicked.connect(self.change_dst_path)
         self.saveImage.clicked.connect(self.save_image)
 
+    def set_wi_params(self):
+        cam_params = self.paramSet['cam']
+
+        self.fill_cam_list(self.cam.capDevices, cam_params['device'])
+        self.device_select(cam_params['device'])
+
+        self.flipH.setChecked(cam_params['hFlip'])
+        self.flipV.setChecked(cam_params['vFlip'])
+
+        if cam_params['savePath'] != '':
+            self.dstPath.setText(cam_params['savePath'])
+        else:
+            self.dstPath.setText(QDir.currentPath())
+
+    def set_cam_controls(self):
+        cam_params = self.paramSet['cam']
+
+        self.autoExposure.setChecked(cam_params['autoExp'])
+        self.exposure.setSliderPosition(cam_params['exposure'])
+        self.gain.setSliderPosition(cam_params['gain'])
+
     def ui_construct(self):
         # Main layout
         self.camSelect = QComboBox(self)
         self.camSelect.setToolTip('Choose Camera...')
 
-        self.camFrame = PgImageView()
-        self.camFrame.getView().setAspectLocked()
-        self.camFrame.getView().enableAutoRange()
-        self.camImage = ImageItem()
-        self.camFrame.addItem(self.camImage)
+        self.camFrame = PgGraphicsView(self)
 
         self.exposure = QSlider(Qt.Vertical)
         self.gain = QSlider(Qt.Vertical)
@@ -140,34 +146,73 @@ class CamWI(QFrame):
         cam_lay.addWidget(cam_controls, 0, 0)
         cam_lay.addWidget(self.camFrame, 0, 1)
 
-    def run(self):
-        if not self.capture:
-            success, dev_number = self.cam.connect(self.paramSet['cam']['device'])
-            self.camSelect.setCurrentIndex(dev_number)
-            self.camFrame.getView().setLimits(xMin=0, xMax=self.cam.imageWidth, yMin=0, yMax=self.cam.imageHeight)
-
-            if success and self.cam.start_stream():
-                self.capture = True
-
-    def stop(self):
-        if self.capture:
-            self.cam.disconnect()
-            self.capture = False
-
     def fill_cam_list(self, device_list, current_index):
+        self.camSelect.blockSignals(True)
+
+        self.camSelect.clear()
+
         for i, device in enumerate(device_list):
             self.camSelect.addItem(device['name'] + ' [W ' + str(device['width']) + ' : H ' + str(device['height']) + ']')
-
         self.camSelect.setCurrentIndex(current_index)
 
-    def update_image(self, frame):
-        if self.capture:
+        self.camSelect.blockSignals(False)
+
+    def device_select(self, idx):
+        if self.active:
+            success, dev_number = self.cam.connect(idx)
+
+            if success:
+                self.paramSet['cam']['device'] = dev_number
+                self.camFrame.vb.setLimits(xMin=0, xMax=self.cam.imageWidth, yMin=0, yMax=self.cam.imageHeight)
+
+                self.cam.ctrl.start_streaming()
+            else:
+                if idx != 0:
+                    self.paramSet['cam']['device'] = 0
+                    self.camSelect.setCurrentIndex(0)
+                else:
+                    print('Device selection error')
+        else:
+            try:
+                self.camFrame.vb.setLimits(xMin=0, xMax=self.cam.imageWidth, yMin=0, yMax=self.cam.imageHeight)
+            except:
+                pass
+
+    def update_frame(self, frame):
+        if self.active:
             if self.addPrimitives:
                 frame = self.draw_primitives(frame)
 
             if self.cam.imageChannel == 3:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+            self.camFrame.image.setImage(self.frame_transform(frame, vInvert=True), autoLevels=False)
+
+        if self.saveFrame:
+            self.saveFrame = False
+            filename = path.join(self.path, str(self.file_idx).zfill(4) + '.png')
+
+            frame = self.frame_transform(frame, vInvert=False)
+            if self.cam.imageChannel == 3:
+                return cv2.imwrite(filename, cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            else:
+                return cv2.imwrite(filename, frame)
+
+    def draw_primitives(self, cv_img):
+        overlay = cv_img.copy()
+        return cv2.addWeighted(overlay, self.alpha, cv_img, 1 - self.alpha, 0, cv_img)
+
+    def frame_transform(self, frame, vInvert=False):
+        # PgGraphicsView inverted image:
+        if vInvert:
+            if self.hFlip and not self.vFlip:
+                frame = cv2.flip(frame, -1)
+            elif self.hFlip:
+                frame = cv2.flip(frame, 1)
+            elif not self.vFlip:
+                frame = cv2.flip(frame, 0)
+        # Default:
+        else:
             if self.hFlip and self.vFlip:
                 frame = cv2.flip(frame, -1)
             elif self.hFlip:
@@ -175,35 +220,28 @@ class CamWI(QFrame):
             elif self.vFlip:
                 frame = cv2.flip(frame, 0)
 
-            # bytes_per_line = self.imageChannel * self.imageWidth
-            # q_image = QImage(self.cvImage.data, self.imageWidth, self.imageHeight, bytes_per_line, QImage.Format_RGB888)
-
-            self.camImage.setImage(frame)
-
-    def draw_primitives(self, cv_img):
-        overlay = cv_img.copy()
-        return cv2.addWeighted(overlay, self.alpha, cv_img, 1 - self.alpha, 0, cv_img)
-
-    def device_select(self, idx):
-        success, dev_number = self.cam.connect(idx)
-        if success:
-            self.paramSet['cam']['device'] = dev_number
-            self.camSelect.setCurrentIndex(dev_number)
-
-            if self.capture:
-                self.cam.start_stream()
+        return frame
 
     def exposure_change(self, exposure):
-        self.paramSet['cam']['exposure'] = exposure
-        self.cam.set_exposure(exposure/100, auto_adjust=self.autoExposure.isChecked())
+        if self.active:
+            self.paramSet['cam']['exposure'] = exposure
+            self.cam.ctrl.set_exposure(exposure/100, auto_adjust=self.autoExposure.isChecked())
 
     def gain_change(self, gain):
-        self.paramSet['cam']['gain'] = gain
-        self.cam.set_gain(gain/100)
+        if self.active:
+            self.paramSet['cam']['gain'] = gain
+            self.cam.ctrl.set_gain(gain/100)
 
     def auto_exp_change(self, val):
-        self.paramSet['cam']['autoExp'] = val
-        self.cam.set_auto_exposure(val)
+        if self.active:
+            self.paramSet['cam']['autoExp'] = val
+            self.cam.ctrl.set_auto_exposure(val)
+
+            if not val:
+                exposure = self.paramSet['cam']['exposure']
+                gain = self.paramSet['cam']['gain']
+                self.cam.ctrl.set_exposure(exposure / 100, auto_adjust=self.autoExposure.isChecked())
+                self.cam.ctrl.set_gain(gain / 100)
 
     def hflip_change(self, val):
         if val:
@@ -227,29 +265,40 @@ class CamWI(QFrame):
         self.dstPath.setText(dst)
 
     def save_image(self):
-        file_list = []
-        dst_path = path.join(self.paramSet['cam']['savePath'], datetime.datetime.now().strftime('%d.%m.%Y'))
-        if not path.exists(dst_path):
-            makedirs(dst_path)
+        if self.path == '':
+            self.path = path.join(self.paramSet['cam']['savePath'], datetime.datetime.now().strftime('%d.%m.%Y'))
+            if not path.exists(self.path):
+                makedirs(self.path)
 
-        file_list = listdir(dst_path)
-        if len(file_list) > 0:
-            file_list.sort(key=lambda f: int(re.search(r'\d+', f).group()))
-            name_id = int(re.search(r'\d+', file_list[-1]).group())
-        else:
-            name_id = 0
-
-        filename = path.join(dst_path, str(name_id + 1).zfill(4) + '.png')
-
-        frame = self.cam.get_frame()
-        if frame is not None:
-            if self.cam.imageChannel == 3:
-                return cv2.imwrite(filename, cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if self.file_idx is None:
+            file_list = listdir(self.path)
+            if len(file_list) > 0:
+                file_list.sort(key=lambda f: int(re.search(r'\d+', f).group()))
+                self.file_idx = int(re.search(r'\d+', file_list[-1]).group()) + 1
             else:
-                return cv2.imwrite(filename, frame)
+                self.file_idx = 1
         else:
-            return False
+            self.file_idx += 1
+
+        if self.cam.ctrl.streaming:
+            self.saveFrame = True
+        else:
+            frame = self.cam.ctrl.get_frame()
+            if frame:
+                self.saveFrame = False
+
+                frame = self.frame_transform(frame, vInvert=False)
+                filename = path.join(self.path, str(self.file_idx).zfill(4) + '.png')
+
+                if self.cam.imageChannel == 3:
+                    return cv2.imwrite(filename, cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                else:
+                    return cv2.imwrite(filename, frame)
+
+    def stop(self):
+        if self.active:
+            self.cam.disconnect()
 
     def shut_down(self):
         self.stop()
-        time.sleep(0.2)
+        time.sleep(0.5)

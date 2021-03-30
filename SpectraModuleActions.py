@@ -5,7 +5,7 @@ from threading import Thread
 import json
 
 import numpy as np
-import matplotlib.image as mpimg
+# import matplotlib.image as mpimg
 
 
 class SpectraModuleActions(object):

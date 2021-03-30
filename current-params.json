@@ -63,12 +63,12 @@
         "VSSpeed": 0
     },
     "cam": {
-        "exposure": 20,
-        "gain": 20,
-        "autoExp": 2,
+        "exposure": 44,
+        "gain": 0,
+        "autoExp": 0,
         "hFlip": false,
-        "savePath": "/home/solk-d10/Documents/Work/Phys/CernaMicro/Python/img",
-        "vFlip": false,
+        "savePath": "C:/LabProjects/CernaFluoScan/img",
+        "vFlip": true,
         "device": 0
     },
     "Laser": {
