@@ -1,15 +1,25 @@
 from pyAndor.Camera.andor import *
-import signal
+
+from threading import Event
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, QObject
+
 import numpy as np
+import matplotlib.image as mpimg
 
 
-class AndorCCD(object):
+class AndorCCD(QObject):
     # Values from Andor SDK documentation
     ACQ_MODE = (1, 2, 3, 1, 4)
     TRIG_MODE = (0, 1, 1, 6)
     READ_MODE = (4, 3, 1, 0)
 
-    def __init__(self, params):
+    frameAcquired = pyqtSignal(np.ndarray)
+
+    def __init__(self, config, params):
+        super().__init__()
+
+        self.conf = config
+
         # self.cam = Andor()
         #
         # self.set_exposure(params['exposure'])
@@ -26,16 +36,19 @@ class AndorCCD(object):
         # self.cam.CoolerON()
         # self.set_temperature(params['temperature'])
 
-        self.ccdData = np.zeros((1024, 255), dtype=np.uint8)
+        self.ccdData = np.zeros((1024, 256), dtype=np.uint8)
+
+        self.cam = None
+
+        self.frameProvider = FrameProvider(self.cam, self.ccdData, self.frameAcquired)
+        self.frameProvider.start()
 
     def frame(self):
-        # self.ccdData = mpimg.imread('ccd-frame2_bw.png')
-        # self.ccdData = self.ccdData * 255
-        # self.ccdData = self.ccdData.astype(np.uint8)
+        # self.cam.StartAcquisition()
+        # self.cam.GetAcquiredData(self.ccdData)
+        # return self.ccdData
 
-        self.cam.StartAcquisition()
-        self.cam.GetAcquiredData(self.ccdData)
-        return self.ccdData
+        self.frameProvider.acquire_frame()
 
     def get_data(self):
         return self.ccdData
@@ -120,3 +133,45 @@ class AndorCCD(object):
 
     def shut_down(self):
         self.cam.ShutDown()
+
+
+class FrameProvider(QThread):
+
+    acquisition = Event()
+    stop_event = Event()
+
+    def __init__(self, cam, frame_data, frame_acquired):
+        super().__init__()
+
+        self.cam = cam
+        self.frameData = frame_data
+
+        self.frameAcquired = frame_acquired
+
+    def acquire_frame(self):
+        self.acquisition.set()
+
+    def stop(self):
+        self.stop_event.set()
+
+    def frame_template(self):
+        data = mpimg.imread('ccd-frame2_bw.png') * 65536
+
+        # return data = np.random.randint(0, 150, (255, 1024), dtype=np.uint16)
+        # gray_color_table = [qRgb(i, i, i) for i in range(256)
+
+        return np.dot(data[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint16)
+
+    def run(self):
+        while not self.stop_event.is_set():
+            if self.acquisition.wait(0.5):
+                self.acquisition.clear()
+                # err = self.cam.StartAcquisition()
+                err = None
+                if err is None:
+                    # self.cam.GetAcquiredData(self.frameData)
+                    self.frameData = self.frame_template()
+                    self.frameAcquired.emit(self.frameData)
+                else:
+                    pass
+        return

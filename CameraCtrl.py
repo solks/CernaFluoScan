@@ -1,5 +1,4 @@
 import time
-
 from threading import Event
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, QObject
 
@@ -256,6 +255,7 @@ class VimbaStream(QThread):
                     self.cap.start_streaming(self.frame_handler, buffer_count=5)
                     self.streamStarted.emit()
                     self.stop_event.wait()
+                    return
                 except:
                     print('Vimba streaming error')
                 finally:
@@ -359,6 +359,7 @@ class OpencvStream(QThread):
 
     def __init__(self, cap, frame_acquired, stream_started):
         super().__init__()
+
         self.cap = cap
 
         self.frameAcquired = frame_acquired
@@ -371,3 +372,4 @@ class OpencvStream(QThread):
             if status:
                 self.frameAcquired.emit(frame)
             time.sleep(0.05)
+        return

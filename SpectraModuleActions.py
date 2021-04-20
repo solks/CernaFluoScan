@@ -1,39 +1,49 @@
 import time
 from functools import partial
 from math import ceil
-from threading import Thread
-import json
+from threading import Thread, Event
+from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, QObject
 
 import numpy as np
-# import matplotlib.image as mpimg
 
 
-class SpectraModuleActions(object):
+class SpectraModuleActions(QObject):
 
-    ccdSize = 1024
     spectraOverlap = 80
 
+    spectraFinished = pyqtSignal()
+
     def __init__(self, ui, p_set, hardware, ccd):
-        self.columns = np.arange(1024)
-        self.rows = np.arange(255)
-
-        # frame data array and coordinates, default coordinates as pixel number
-        self.framedata = np.zeros((255, 1024), dtype=np.uint16)
-        self.coordinates = self.columns.astype(dtype=np.float)
-        self.n_factor = 1
-
-        # self.framedata = np.random.randint(0, 50, (255, 1024), dtype=np.uint16)
+        super().__init__()
 
         self.mainform = ui
         self.paramSet = p_set
         self.hardware = hardware
         self.ccd = ccd
 
-        self.monoThread = Thread()
+        self.ccdWidth = self.ccd.conf['CCD-w']
+        self.ccdHeight = self.ccd.conf['CCD-h']
+
+        self.columns = np.arange(self.ccdWidth)
+        self.rows = np.arange(self.ccdHeight)
+
+        # frame data array and coordinates, default coordinates as pixel number
+        self.spData = np.zeros((self.ccdHeight, self.ccdWidth), dtype=np.uint16)
+        self.coordinates = self.columns.astype(dtype=np.float)
+        self.n_factor = 1
+
+        self.monoRoutine = Thread()
         self.mono_positions = [None]*self.paramSet['MDR-3']['WL-inc']
 
-        self.connect_events()
+        self.spCmp = SpectrumCompilation(self.ccd, self.hardware, self.spectraFinished)
+        self.spCmp.set_frame_size(self.spData, self.ccdWidth, self.spectraOverlap)
+        self.spCmp.start()
 
+        # self.framedata = np.zeros((255, 2048), dtype=np.uint16)
+        # self.spectrumAcquisition.setArr()
+        # print(self.framedata[1,1])
+
+        self.connect_events()
 
     def connect_events(self):
         mf = self.mainform
@@ -47,6 +57,7 @@ class SpectraModuleActions(object):
         mf.stop_move.clicked.connect(self.stage_stop)
 
         mf.acquire_btn.clicked.connect(self.acquire)
+        self.spectraFinished.connect(self.show_spectrum)
 
         mf.step_val.currentTextChanged.connect(self.stepinfo_change)
 
@@ -68,9 +79,9 @@ class SpectraModuleActions(object):
         mf.WLStart.editingFinished.connect(self.WL_start_change)
         mf.WLEnd_dec.clicked.connect(self.WL_end_dec)
         mf.WLEnd_inc.clicked.connect(self.WL_end_inc)
-        mf.monoSetPos.clicked.connect(self.mono_WL_set)
+        mf.monoSetPos.clicked.connect(self.mono_centralWL_set)
         mf.monoGridSelect.currentIndexChanged.connect(self.mono_grid_select)
-        mf.monoStartup.connect(self.mono_startup)
+        mf.monoStartup.connect(self.startup)
 
         # Andor actions
         mf.exposureTime.editingFinished.connect(self.exposure_change)
@@ -125,20 +136,20 @@ class SpectraModuleActions(object):
         self.paramSet['frameSet']['binning'] = val
         self.upd_spectrum()
 
-    def x_units_change(self, button):
-        id = self.mainform.XUnits.id(button)
-        self.paramSet['frameSet']['x-axis'] = id
+    def x_units_change(self):
+        units_id = self.mainform.XUnits.checkedId()
+        self.paramSet['frameSet']['x-axis'] = units_id
 
-        if id == 0:
+        if units_id == 0:
             # nm
             central_WL = self.paramSet['MDR-3']['WL-pos']
-            WL_range  = 250
+            WL_range = 250
             for i in self.columns:
                 self.coordinates[i] = central_WL + (i - 512) * WL_range / 1024.0
 
             self.mainform.spectrum.setLabels(bottom='Wavelength (nm)')
 
-        elif id == 1:
+        elif units_id == 1:
             # eV
             central_WL = self.paramSet['MDR-3']['WL-pos']
             WL_range = 250
@@ -162,11 +173,11 @@ class SpectraModuleActions(object):
             vb.setXRange(self.coordinates[1023], self.coordinates[0], padding=0)
             vb.setLimits(xMin=self.coordinates[1023], xMax=self.coordinates[0])
 
-    def y_units_change(self, button):
-        id = self.mainform.YUnits.id(button)
-        self.paramSet['frameSet']['y-axis'] = id
+    def y_units_change(self):
+        units_id = self.mainform.YUnits.checkedId()
+        self.paramSet['frameSet']['y-axis'] = units_id
 
-        if id == 1:
+        if units_id == 1:
             self.n_factor = 1 / self.mainform.exposureTime.value()
         else:
             self.n_factor = 1
@@ -177,30 +188,44 @@ class SpectraModuleActions(object):
         if row == -1:
             row = self.mainform.frameRowSelect.value() - 1
 
-        num_rows = self.mainform.rowBinning.value()
+        bin_rows = self.mainform.rowBinning.value()
 
-        if num_rows > 1:
-            min_row = ceil(row - num_rows / 2)
-            max_row = ceil(row + num_rows / 2)
+        if bin_rows > 1:
+            min_row = ceil(row - bin_rows / 2)
+            max_row = ceil(row + bin_rows / 2)
 
             if self.mainform.avgBinning.isChecked():
                 self.mainform.spectrumCurve.setData(
                     x=self.coordinates,
-                    y=np.average(self.framedata[min_row:max_row, :], axis=0) * self.n_factor
+                    y=np.average(self.spData[min_row:max_row, :], axis=0) * self.n_factor
                 )
             else:
                 self.mainform.spectrumCurve.setData(
                     x=self.coordinates,
-                    y=np.sum(self.framedata[min_row:max_row, :], axis=0) * self.n_factor
+                    y=np.sum(self.spData[min_row:max_row, :], axis=0) * self.n_factor
                 )
         else:
-            self.mainform.spectrumCurve.setData(x=self.coordinates, y=self.framedata[row, :] * self.n_factor)
+            self.mainform.spectrumCurve.setData(x=self.coordinates, y=self.spData[row, :] * self.n_factor)
 
     def upd_frame_section(self, column=-1):
         if column == -1:
             column = self.mainform.frameColSelect.value() - 1
 
-        self.mainform.frameSectionCurve.setData(x=self.framedata[:, column], y=self.rows)
+        self.mainform.frameSectionCurve.setData(x=self.spData[:, column], y=self.rows)
+
+    def resize_spectrum(self, pcs):
+        # resizing spectrum data array
+        height = self.ccdHeight
+        width = (self.ccdWidth - self.spectraOverlap) * pcs + self.spectraOverlap
+        self.spData = np.zeros((height, width), dtype=np.uint16)
+        self.spCmp.set_frame_size(self.spData, self.ccdWidth, self.spectraOverlap)
+        self.columns = np.arange(width)
+        self.x_units_change()
+
+        # updating all widget sizes
+        self.mainform.CCDFrame.getView().setLimits(xMin=0, xMax=width+1, yMin=0, yMax=height+1)
+        self.mainform.vLine.setBounds((0.5, width-0.5))
+        self.mainform.frameColSelect.setRange(1, width)
 
     def exposure_change(self):
         exp_time = self.mainform.exposureTime.value()
@@ -260,67 +285,93 @@ class SpectraModuleActions(object):
         WL_start = self.mainform.WLStart.value()
         self.paramSet['MDR-3']['WL-start'] = WL_start
 
+        # updating monochromator positions
         self.mono_positions[0] = self.hardware.mono_toSteps(WL_start)
         if self.paramSet['MDR-3']['WL-inc'] > 1:
             for i in range(1, self.paramSet['MDR-3']['WL-inc']):
-                WL_next = self.hardware.mono_toWL(self.mono_positions[i-1], self.ccdSize - self.spectraOverlap)
+                WL_next = self.hardware.mono_toWL(self.mono_positions[i-1], self.ccdWidth - self.spectraOverlap)
                 steps_next = self.hardware.mono_toSteps(WL_next)
                 self.mono_positions[i] = steps_next
-        WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdSize)
+        WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdWidth)
         self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
 
+        self.spCmp.set_range_points(self.mono_positions)
+
     def WL_end_inc(self):
-        WL_inc = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdSize - self.spectraOverlap)
+        WL_inc = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdWidth - self.spectraOverlap)
         steps_inc = self.hardware.mono_toSteps(WL_inc)
         self.mono_positions.append(steps_inc)
         self.paramSet['MDR-3']['WL-inc'] += 1
 
-        WL_end = self.hardware.mono_toWL(steps_inc, self.ccdSize)
+        WL_end = self.hardware.mono_toWL(steps_inc, self.ccdWidth)
         self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
+
+        self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'])
+        self.spCmp.set_range_points(self.mono_positions)
 
     def WL_end_dec(self):
         if self.paramSet['MDR-3']['WL-inc'] > 1:
             self.mono_positions.pop()
             self.paramSet['MDR-3']['WL-inc'] -= 1
 
-            WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdSize)
+            WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdWidth)
             self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
 
-    def mono_WL_set(self):
-        pos = self.mainform.monoGridPos.value()
-        self.paramSet['MDR-3']['WL-pos'] = pos
-        # move ...
-        self.mainform.monoCurrentPos.setText(str(pos) + ' nm')
+            self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'])
+            self.spCmp.set_range_points(self.mono_positions)
 
-    def mono_startup(self):
+    def mono_centralWL_set(self):
+        # Position (in steps) is calculated according to the first pixel, WL - to the center pixel
+
+        WL_set = self.mainform.monoGridPos.value()
+        pos_cp = self.hardware.mono_toSteps(WL_set)
+        WL_fp = WL_set - (self.hardware.mono_toWL(pos_cp, self.ccdWidth // 2) - WL_set)
+        pos_set = self.hardware.mono_toSteps(WL_fp)
+        ret = self.hardware.mono_goto(pos_set)
+        if ret == 'OK':
+            current_WL = self.hardware.mono_toWL(pos_set, self.ccdWidth // 2)
+            self.paramSet['MDR-3']['WL-pos'] = current_WL
+            self.mainform.monoCurrentPos.setText("{0:.2f}".format(current_WL) + ' nm')
+
+    def startup(self):
         self.WL_start_change()
-        # check current monochromator position, update self.mainform.monoCurrentPos
+        self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'])
+
+        # Check current monochromator position
+        current_pos = self.hardware.mono_pos()
+        if current_pos is not False:
+            current_WL = self.hardware.mono_toWL(current_pos, self.ccdWidth // 2)
+            self.paramSet['MDR-3']['WL-pos'] = current_WL
+            self.mainform.monoCurrentPos.setText("{0:.2f}".format(current_WL) + ' nm')
+        else:
+            self.mainform.monoCurrentPos.setText(" -- ")
+            self.mainform.statusBar.showMessage('Monochromator position error...')
 
     def mono_run_calibration(self):
         ans = self.hardware.mono_move_start()
         if ans == 'OK':
             while self.hardware.mono_status() == 'BUSY':
-                pos = self.hardware.mono_pos()
-                WL = self.hardware.mono_toWL0(pos)
-                # self.paramSet['MDR-3']['WL-pos'] = WL
-                # self.mainform.monoCurrentPos.setText(str(WL))
+                current_pos = self.hardware.mono_pos()
+                current_WL = self.hardware.mono_toWL(current_pos, self.ccdWidth // 2)
+                self.paramSet['MDR-3']['WL-pos'] = current_WL
+                self.mainform.monoCurrentPos.setText("{0:.2f}".format(current_WL) + ' nm')
                 time.sleep(0.5)
 
             if self.hardware.mono_status() == 'ERROR':
-                self.mainform.statusBar.showMessage('Monochromator Calibration Error...')
+                self.mainform.statusBar.showMessage('Monochromator calibration error...')
             else:
-                pos = self.hardware.mono_pos()
-                WL = self.hardware.mono_toWL0(pos)
-                # self.paramSet['MDR-3']['WL-pos'] = WL
-                # self.mainform.monoCurrentPos.setText(str(WL))
+                current_pos = self.hardware.mono_pos()
+                current_WL = self.hardware.mono_toWL(current_pos, self.ccdWidth // 2)
+                self.paramSet['MDR-3']['WL-pos'] = current_WL
+                self.mainform.monoCurrentPos.setText("{0:.2f}".format(current_WL) + ' nm')
         elif ans == 'BUSY':
-            self.mainform.statusBar.showMessage('Monochromator is Busy. Please try again later.')
+            self.mainform.statusBar.showMessage('Monochromator is busy. Please try again later.')
         else:
-            self.mainform.statusBar.showMessage('Monochromator Connection Error...')
+            self.mainform.statusBar.showMessage('Monochromator connection error...')
 
     def mono_calibration(self):
-        self.monoThread = Thread(target=self.mono_run_calibration)
-        self.monoThread.start()
+        self.monoRoutine = Thread(target=self.mono_run_calibration)
+        self.monoRoutine.start()
 
     def mono_grid_select(self, grid_idx):
         self.paramSet['MDR-3']['grating-select'] = grid_idx
@@ -355,17 +406,75 @@ class SpectraModuleActions(object):
             self.paramSet['stagePos'][axis] = pos
             self.mainform.x_pos.setText(str(pos))
 
-    def get_frame(self):
-        # self.framedata = self.ccd.get_data()
-        # self.framedata = np.random.randint(0, 150, (255, 1024), dtype=np.uint16)
-
-        data = mpimg.imread('ccd-frame2_bw.png') * 65536
-        self.framedata = np.dot(data[..., :3], [0.2989, 0.5870, 0.1140]).astype(np.uint16)
-
-        # gray_color_table = [qRgb(i, i, i) for i in range(256)]
-
-    def acquire(self):
-        self.get_frame()
-        self.mainform.image.setImage(self.framedata)
+    def show_spectrum(self):
+        self.mainform.image.setImage(self.spData)
         self.upd_spectrum()
         self.upd_frame_section()
+
+    def acquire(self):
+        self.spCmp.acquisition.set()
+
+
+class SpectrumCompilation(QThread):
+
+    acquisition = Event()
+    frame_parsed = Event()
+    stop_event = Event()
+
+    mono_positions = []
+
+    dataArray = []
+    sp_size = 1024
+    sp_overlap = 80
+
+    frame_index = 0
+
+    def __init__(self, ccd, hardware, finished):
+        super().__init__()
+
+        self.ccd = ccd
+        self.hardware = hardware
+        self.finished = finished
+
+        self.ccd.frameAcquired.connect(self.framedata_handler)
+
+    def set_range_points(self, p):
+        self.mono_positions = p
+
+    # def setArr(self):
+    #     self.dataArray[1,1] = 5
+
+    def set_frame_size(self, data_array, strip_size, overlap):
+        self.dataArray = data_array
+        self.sp_size = strip_size
+        self.sp_overlap = overlap
+
+    def framedata_handler(self, data):
+        idx1 = self.frame_index * (self.sp_size - self.sp_overlap)
+        idx2 = self.frame_index * (self.sp_size - self.sp_overlap) + self.sp_size
+        self.dataArray[:, idx1:idx2] = data
+        self.frame_index += 1
+
+        self.frame_parsed.set()
+
+    def stop(self):
+        self.stop_event.set()
+
+    def run(self):
+        while not self.stop_event.is_set():
+            if self.acquisition.wait(0.5):
+                for pos in self.mono_positions:
+                    self.hardware.mono_goto(pos)
+
+                    while self.hardware.mono_status() == 'BUSY':
+                        time.sleep(0.2)
+
+                    self.ccd.frame()
+                    self.frame_parsed.wait()
+                    self.frame_parsed.clear()
+
+                self.acquisition.clear()
+                self.frame_index = 0
+
+                self.finished.emit()
+        return

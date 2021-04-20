@@ -1,115 +1,115 @@
 {
-    "scanActions": {
-        "2": {
-            "par1": "",
-            "use": 0,
-            "id": 0
-        },
-        "3": {
-            "par1": "",
-            "use": 0,
-            "id": 0
-        },
-        "4": {
-            "par1": "",
-            "use": 0,
-            "id": 0
-        },
-        "1": {
-            "par1": "",
-            "use": 0,
-            "id": 0
-        },
-        "0": {
-            "par1": "",
-            "use": 2,
-            "id": 1
-        }
+  "scanActions": {
+    "2": {
+      "par1": "",
+      "use": 0,
+      "id": 0
     },
-    "stagePos": {
-        "step": 100,
-        "x": 0,
-        "z": 0,
-        "y": 5
+    "3": {
+      "par1": "",
+      "use": 0,
+      "id": 0
     },
-    "frameSet": {
-        "y-axis": 1,
-        "binningAvg": false,
-        "x-axis": 2,
-        "column": 106,
-        "binning": 2,
-        "row": 106
+    "4": {
+      "par1": "",
+      "use": 0,
+      "id": 0
     },
-    "windowSize": {
-        "height": 960,
-        "width": 1535
+    "1": {
+      "par1": "",
+      "use": 0,
+      "id": 0
     },
-    "Andor": {
-        "VSAVoltage": 0,
-        "exposure": 3.0,
-        "gain": 0,
-        "AcqMode": {
-            "mode": 0,
-            "accumCycle": 5.0,
-            "accumFrames": 2,
-            "kCycle": 20.0,
-            "kSeries": 3
-        },
-        "cooler": 1,
-        "trigMode": 3,
-        "readMode": 0,
-        "ADCRate": 0,
-        "temperature": -20,
-        "VSSpeed": 0
-    },
-    "cam": {
-        "exposure": 44,
-        "gain": 0,
-        "autoExp": 0,
-        "hFlip": false,
-        "savePath": "C:/LabProjects/CernaFluoScan/img",
-        "vFlip": true,
-        "device": 0
-    },
-    "Laser": {
-        "source-id": 0
-    },
-    "MDR-3": {
-        "WL-start": 500.0,
-        "WL-inc": 4,
-        "WL-pos": 400.0,
-        "grating-select": 1
-    },
-    "scanSet": {
-        "2": {
-            "step": 1,
-            "count": 1,
-            "use": 0,
-            "id": 0
-        },
-        "3": {
-            "step": 1,
-            "count": 1,
-            "use": 0,
-            "id": 0
-        },
-        "4": {
-            "step": 1,
-            "count": 1,
-            "use": 0,
-            "id": 0
-        },
-        "1": {
-            "step": 1,
-            "count": 3,
-            "use": 2,
-            "id": 2
-        },
-        "0": {
-            "step": 1,
-            "count": 3,
-            "use": 2,
-            "id": 1
-        }
+    "0": {
+      "par1": "",
+      "use": 2,
+      "id": 1
     }
+  },
+  "stagePos": {
+    "step": 100,
+    "x": 0,
+    "z": 0,
+    "y": 5
+  },
+  "frameSet": {
+    "y-axis": 1,
+    "binningAvg": false,
+    "x-axis": 2,
+    "column": 36,
+    "binning": 3,
+    "row": 248
+  },
+  "windowSize": {
+    "height": 960,
+    "width": 1535
+  },
+  "Andor": {
+    "VSAVoltage": 0,
+    "exposure": 3.0,
+    "gain": 0,
+    "AcqMode": {
+      "mode": 0,
+      "accumCycle": 5.0,
+      "accumFrames": 2,
+      "kCycle": 20.0,
+      "kSeries": 3
+    },
+    "cooler": 1,
+    "trigMode": 3,
+    "readMode": 0,
+    "ADCRate": 0,
+    "temperature": -20,
+    "VSSpeed": 0
+  },
+  "cam": {
+    "exposure": 44,
+    "gain": 0,
+    "autoExp": 0,
+    "hFlip": false,
+    "savePath": "C:/LabProjects/CernaFluoScan/img",
+    "vFlip": false,
+    "device": 0
+  },
+  "Laser": {
+    "source-id": 0
+  },
+  "MDR-3": {
+    "WL-start": 500.0,
+    "WL-inc": 2,
+    "WL-pos": 400.0,
+    "grating-select": 1
+  },
+  "scanSet": {
+    "2": {
+      "step": 1,
+      "count": 1,
+      "use": 0,
+      "id": 0
+    },
+    "3": {
+      "step": 1,
+      "count": 1,
+      "use": 0,
+      "id": 0
+    },
+    "4": {
+      "step": 1,
+      "count": 1,
+      "use": 0,
+      "id": 0
+    },
+    "1": {
+      "step": 1,
+      "count": 3,
+      "use": 2,
+      "id": 2
+    },
+    "0": {
+      "step": 1,
+      "count": 3,
+      "use": 2,
+      "id": 1
+    }
+  }
 }

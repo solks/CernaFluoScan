@@ -46,7 +46,7 @@ class AppWindow(QMainWindow):
         self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 
         self.hardware = HardWare(self.hardwareConf)
-        self.ccd = AndorCCD(self.paramSet['Andor'])
+        self.ccd = AndorCCD(self.hardwareConf['Andor'], self.paramSet['Andor'])
 
         self.actions_init()
 
@@ -124,7 +124,7 @@ class AppWindow(QMainWindow):
 
         print('Save parameters...')
         with open('current-params.json', 'w') as f:
-            json.dump(self.paramSet, f, indent=4)
+            json.dump(self.paramSet, f, indent=2)
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, 'Message', "Are you sure to quit?",

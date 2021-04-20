@@ -16,8 +16,8 @@ class HardWare(object):
 
     gratingIndex = 1
 
-    def __init__(self, p):
-        self.conf = p
+    def __init__(self, config):
+        self.conf = config
 
         # stages = list(discover_stages())
         # for s in stages:

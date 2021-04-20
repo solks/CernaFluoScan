@@ -11,6 +11,7 @@ from WidgetsUI import CrossCursor
 
 
 class SpectraModuleUI(QWidget):
+
     monoStartup = pyqtSignal()
 
     def __init__(self, cam_wi, status_bar):
@@ -31,8 +32,6 @@ class SpectraModuleUI(QWidget):
         # Frame parameter set
         self.frameRowSelect.setValue(frame['row'])
         self.frameColSelect.setValue(frame['column'])
-        self.vLine.setPos(frame['row'])
-        self.hLine.setPos(frame['column'])
 
         self.rowBinning.setValue(frame['binning'])
         if frame['binningAvg']:
@@ -282,7 +281,7 @@ class SpectraModuleUI(QWidget):
         self.frameSection.addItem(self.frameSectionCursor)
 
         self.frameRowSelect = QSpinBox(self)
-        self.frameRowSelect.setRange(1, 255)
+        self.frameRowSelect.setRange(1, 256)
         self.frameColSelect = QSpinBox(self)
         self.frameColSelect.setRange(1, 1024)
 
@@ -304,7 +303,7 @@ class SpectraModuleUI(QWidget):
         self.XUnits.button(0).setChecked(True)
 
         self.rowBinning = QSpinBox(self)
-        self.rowBinning.setRange(1, 255)
+        self.rowBinning.setRange(1, 256)
         self.avgBinning = QCheckBox('Average value')
         row_binning_lbl = QLabel('Binning', self)
 
@@ -478,7 +477,9 @@ class SpectraModuleUI(QWidget):
         pg.setConfigOptions(imageAxisOrder='row-major')
 
         frame = pg.ImageView()
-        frame.getView().setLimits(xMin=0, xMax=1025, yMin=0, yMax=256)
+        vb = frame.getView()
+        vb.setLimits(xMin=0, xMax=1023, yMin=0, yMax=255)
+        vb.setAspectLocked(False)
 
         size_policy = QSizePolicy()
         size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
@@ -529,9 +530,9 @@ class SpectraModuleUI(QWidget):
         pen = pg.mkPen(color=pg.mkColor('#C8C86466'), width=1)
         hover_pen = pg.mkPen(color=pg.mkColor('#FF000077'), width=1)
         if a == 'h':
-            line = pg.InfiniteLine(angle=0, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 254.5))
+            line = pg.InfiniteLine(angle=0, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 255.5))
         else:
-            line = pg.InfiniteLine(angle=90, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 1234.5))
+            line = pg.InfiniteLine(angle=90, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 1023.5))
 
         return line
 
