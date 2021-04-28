@@ -7,20 +7,20 @@ from PyQt5.QtGui import QIntValidator
 
 import pyqtgraph as pg
 
-from WidgetsUI import CrossCursor
+from WidgetsUI import PgGraphicsView, PgPlotWidget, CrossLine, CrossCursor
 
 
 class SpectraModuleUI(QWidget):
 
     monoStartup = pyqtSignal()
 
-    def __init__(self, cam_wi, status_bar):
+    def __init__(self, cam_wi, status_bar, hardware_conf):
         super().__init__()
 
         self.CameraWI = cam_wi
         self.statusBar = status_bar
 
-        self.ui_construct()
+        self.ui_construct(hardware_conf)
 
     def init_parameters(self, param_set):
         frame = param_set['frameSet']
@@ -94,7 +94,7 @@ class SpectraModuleUI(QWidget):
             self.kineticSeries.setEnabled(True)
             self.kineticCycle.setEnabled(False)
 
-    def ui_construct(self):
+    def ui_construct(self, conf):
         # Main splitters
         topleft_frame = QFrame(self)
         topleft_frame.setFrameShape(QFrame.StyledPanel)
@@ -260,30 +260,34 @@ class SpectraModuleUI(QWidget):
 
         # --- CCD Frame Layout ---
 
-        self.CCDFrame = self.ccd_frame_widget()
-        self.image = pg.ImageItem()
-        self.CCDFrame.addItem(self.image)
-        self.vLine = self.cross_hair(a='v')
-        self.hLine = self.cross_hair(a='h')
-        self.CCDFrame.addItem(self.vLine)
-        self.CCDFrame.addItem(self.hLine)
+        self.CCDFrame = PgGraphicsView(self, aspect_locked=False)
+        self.CCDFrame.setMinimumSize(512, 128)
+        self.CCDFrame.vb.setLimits(xMin=0, xMax=conf['CCD-w']-1, yMin=0, yMax=conf['CCD-h']-1)
+        self.vLine = CrossLine(angle=90, bounds=(0.5, 1023.5))
+        self.hLine = CrossLine(angle=0, bounds=(0.5, 255.5))
+        self.CCDFrame.vb.addItem(self.vLine)
+        self.CCDFrame.vb.addItem(self.hLine)
 
-        self.spectrum = self.ccd_graph_widget(w='row')
-        self.spectrumCurve = self.spectrum.plot(pen='y')
-        self.spectrumCursor = self.cross_cursor()
+        self.spectrum = PgPlotWidget(self, w='row')
+        self.spectrum.plotItem.setLabels(left='Intensity')
+        self.spectrum.vb.setYRange(0, 40000)
+        self.spectrumCursor = CrossCursor()
         self.cursorPosLbl = pg.TextItem(text="X = 0, Y = 0", anchor=(-5, -1), color=pg.mkColor("#99999988"))
-        self.cursorPosLbl.setParentItem(self.spectrum.plotItem)
-        self.spectrum.addItem(self.spectrumCursor)
+        self.cursorPosLbl.setParentItem(self.spectrum.vb)
+        self.spectrum.vb.addItem(self.spectrumCursor)
 
-        self.frameSection = self.ccd_graph_widget(w='col')
-        self.frameSectionCurve = self.frameSection.plot(pen='y')
-        self.frameSectionCursor = self.cross_cursor()
+        self.frameSection = PgPlotWidget(self, w='col')
+        # self.frameSection.setLabels(right='Row')
+        self.frameSection.vb.setYRange(0, conf['CCD-h']-1)
+        self.frameSection.vb.setLimits(yMin=0, yMax=conf['CCD-h']-1)
+        # self.frameSectionCurve = self.frameSection.plot(pen='y')
+        self.frameSectionCursor = CrossCursor()
         self.frameSection.addItem(self.frameSectionCursor)
 
         self.frameRowSelect = QSpinBox(self)
-        self.frameRowSelect.setRange(1, 256)
+        self.frameRowSelect.setRange(1, conf['CCD-h'])
         self.frameColSelect = QSpinBox(self)
-        self.frameColSelect.setRange(1, 1024)
+        self.frameColSelect.setRange(1, conf['CCD-w'])
 
         y_radio0 = QRadioButton('Counts')
         y_radio0.setChecked(True)
@@ -470,75 +474,3 @@ class SpectraModuleUI(QWidget):
         cam_settings_lay.addWidget(cam_timing_group)
         cam_settings_lay.addWidget(cam_mode_group)
         cam_settings_lay.addWidget(cam_readout_group)
-
-    def ccd_frame_widget(self):
-        bg_color = pg.mkColor('#29353D')
-        pg.setConfigOptions(background=bg_color)
-        pg.setConfigOptions(imageAxisOrder='row-major')
-
-        frame = pg.ImageView()
-        vb = frame.getView()
-        vb.setLimits(xMin=0, xMax=1023, yMin=0, yMax=255)
-        vb.setAspectLocked(False)
-
-        size_policy = QSizePolicy()
-        size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
-        size_policy.setVerticalPolicy(QSizePolicy.Expanding)
-        frame.setSizePolicy(size_policy)
-        frame.setMinimumSize(512, 128)
-        frame.ui.histogram.hide()
-        frame.ui.roiBtn.hide()
-        frame.ui.menuBtn.hide()
-
-        return frame
-
-    def ccd_graph_widget(self, w='row'):
-        bg_color = pg.mkColor('#29353D')
-        pg.setConfigOptions(background=bg_color)
-
-        graph = pg.PlotWidget()
-        graph.showGrid(x=True, y=True)
-        graph.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        graph.setMouseTracking(True)
-
-
-        if w == 'row':
-            graph.setLabels(left='Intensity')
-            graph.setYRange(0, 40000)
-            graph.plotItem.setContentsMargins(0, 20, 20, 0)
-            graph.plotItem.showAxis('top', True)
-            graph.plotItem.showAxis('right', True)
-            graph.plotItem.getAxis('top').setStyle(showValues=False)
-            graph.plotItem.getAxis('right').setStyle(showValues=False)
-
-        else:
-            # graph.setLabels(right='Row')
-            graph.setYRange(0, 255)
-            graph.setLimits(yMin=0, yMax=255)
-            graph.plotItem.setContentsMargins(10, 8, 0, 10)
-            graph.plotItem.showAxis('top', True)
-            graph.plotItem.showAxis('right', True)
-            graph.plotItem.getAxis('top').setStyle(showValues=False)
-            graph.plotItem.getAxis('left').setStyle(showValues=False)
-            graph.plotItem.getAxis('bottom').setStyle(showValues=False)
-            graph.plotItem.getViewBox().invertX(True)
-
-        return graph
-
-    def cross_hair(self, a='h'):
-        # cross hair
-        pen = pg.mkPen(color=pg.mkColor('#C8C86466'), width=1)
-        hover_pen = pg.mkPen(color=pg.mkColor('#FF000077'), width=1)
-        if a == 'h':
-            line = pg.InfiniteLine(angle=0, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 255.5))
-        else:
-            line = pg.InfiniteLine(angle=90, pen=pen, hoverPen=hover_pen, movable=True, bounds=(0.5, 1023.5))
-
-        return line
-
-    def cross_cursor(self):
-        pen_color = pg.mkColor('#C8C86477')
-        c_pen = pg.mkPen(color=pen_color, width=1)
-        cursor_obj = CrossCursor(pen=c_pen)
-
-        return cursor_obj

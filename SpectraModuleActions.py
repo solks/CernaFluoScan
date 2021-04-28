@@ -147,7 +147,7 @@ class SpectraModuleActions(QObject):
             for i in self.columns:
                 self.coordinates[i] = central_WL + (i - 512) * WL_range / 1024.0
 
-            self.mainform.spectrum.setLabels(bottom='Wavelength (nm)')
+            self.mainform.spectrum.plotItem.setLabels(bottom='Wavelength (nm)')
 
         elif units_id == 1:
             # eV
@@ -156,22 +156,22 @@ class SpectraModuleActions(QObject):
             for i in self.columns:
                 self.coordinates[i] = 1239.84193 / (central_WL + (i - 512) * WL_range / 1024.0)
 
-            self.mainform.spectrum.setLabels(bottom='Energy (eV)')
+            self.mainform.spectrum.plotItem.setLabels(bottom='Energy (eV)')
 
         else:
             # pixel number
             self.coordinates = self.columns.astype(dtype=np.float)
-            self.mainform.spectrum.setLabels(bottom='Pixel number')
+            self.mainform.spectrum.plotItem.setLabels(bottom='Pixel number')
 
         self.upd_spectrum()
 
-        vb = self.mainform.spectrumCurve.getViewBox()
+        # vb = self.mainform.spectrumCurve.getViewBox()
         if self.coordinates[0] < self.coordinates[1023]:
-            vb.setXRange(self.coordinates[0], self.coordinates[1023], padding=0)
-            vb.setLimits(xMin=self.coordinates[0], xMax=self.coordinates[1023])
+            self.mainform.spectrum.vb.setXRange(self.coordinates[0], self.coordinates[1023], padding=0)
+            self.mainform.spectrum.vb.setLimits(xMin=self.coordinates[0], xMax=self.coordinates[1023])
         else:
-            vb.setXRange(self.coordinates[1023], self.coordinates[0], padding=0)
-            vb.setLimits(xMin=self.coordinates[1023], xMax=self.coordinates[0])
+            self.mainform.spectrum.vb.setXRange(self.coordinates[1023], self.coordinates[0], padding=0)
+            self.mainform.spectrum.vb.setLimits(xMin=self.coordinates[1023], xMax=self.coordinates[0])
 
     def y_units_change(self):
         units_id = self.mainform.YUnits.checkedId()
@@ -195,23 +195,26 @@ class SpectraModuleActions(QObject):
             max_row = ceil(row + bin_rows / 2)
 
             if self.mainform.avgBinning.isChecked():
-                self.mainform.spectrumCurve.setData(
+                self.mainform.spectrum.curve.setData(
                     x=self.coordinates,
                     y=np.average(self.spData[min_row:max_row, :], axis=0) * self.n_factor
                 )
             else:
-                self.mainform.spectrumCurve.setData(
+                self.mainform.spectrum.curve.setData(
                     x=self.coordinates,
                     y=np.sum(self.spData[min_row:max_row, :], axis=0) * self.n_factor
                 )
         else:
-            self.mainform.spectrumCurve.setData(x=self.coordinates, y=self.spData[row, :] * self.n_factor)
+            self.mainform.spectrum.curve.setData(
+                x=self.coordinates,
+                y=self.spData[row, :] * self.n_factor
+            )
 
     def upd_frame_section(self, column=-1):
         if column == -1:
             column = self.mainform.frameColSelect.value() - 1
 
-        self.mainform.frameSectionCurve.setData(x=self.spData[:, column], y=self.rows)
+        self.mainform.frameSection.curve.setData(x=self.spData[:, column], y=self.rows)
 
     def resize_spectrum(self, pcs):
         # resizing spectrum data array
@@ -223,7 +226,7 @@ class SpectraModuleActions(QObject):
         self.x_units_change()
 
         # updating all widget sizes
-        self.mainform.CCDFrame.getView().setLimits(xMin=0, xMax=width+1, yMin=0, yMax=height+1)
+        self.mainform.CCDFrame.vb.setLimits(xMin=0, xMax=width-1, yMin=0, yMax=height-1)
         self.mainform.vLine.setBounds((0.5, width-0.5))
         self.mainform.frameColSelect.setRange(1, width)
 
@@ -407,7 +410,7 @@ class SpectraModuleActions(QObject):
             self.mainform.x_pos.setText(str(pos))
 
     def show_spectrum(self):
-        self.mainform.image.setImage(self.spData)
+        self.mainform.CCDFrame.image.setImage(self.spData)
         self.upd_spectrum()
         self.upd_frame_section()
 

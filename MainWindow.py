@@ -68,7 +68,7 @@ class AppWindow(QMainWindow):
         self.CameraScWI = CamWI(self.CamCrtl, self.paramSet, False)
 
         # Module for spectrum acquisition
-        self.spectraModuleUI = SpectraModuleUI(self.CameraSpWI, self.statusBar())
+        self.spectraModuleUI = SpectraModuleUI(self.CameraSpWI, self.statusBar(), self.hardwareConf['Andor'])
         self.spectraModuleUI.setFocus()
         # Module for scanning
         self.scanModuleUI = ScanModuleUI(self.CameraScWI, self.statusBar())

@@ -4,7 +4,8 @@ from threading import Event
 from PyQt5.QtCore import QThread, pyqtSignal, pyqtSlot, QObject
 
 import numpy as np
-import matplotlib.image as mpimg
+import cv2
+# import matplotlib.image as mpimg
 
 
 class AndorCCD(QObject):
@@ -155,7 +156,8 @@ class FrameProvider(QThread):
         self.stop_event.set()
 
     def frame_template(self):
-        data = mpimg.imread('ccd-frame2_bw.png') * 65536
+        # data = mpimg.imread('ccd-frame2_bw.png') * 65536
+        data = cv2.imread('ccd-frame2_bw.png')
 
         # return data = np.random.randint(0, 150, (255, 1024), dtype=np.uint16)
         # gray_color_table = [qRgb(i, i, i) for i in range(256)

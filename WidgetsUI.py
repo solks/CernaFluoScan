@@ -15,7 +15,7 @@ class VTabBar(QTabBar):
 
 
 class PgGraphicsView(pg.GraphicsView):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, aspect_locked=True):
         super().__init__(parent, useOpenGL=False, background=pg.mkColor('#29353D'))
 
         pg.setConfigOptions(imageAxisOrder='row-major')
@@ -26,23 +26,61 @@ class PgGraphicsView(pg.GraphicsView):
         self.image = pg.ImageItem()
         self.vb.addItem(self.image)
 
-        self.init_ui()
+        self.init_ui(aspect_locked)
 
-    def init_ui(self):
-        self.vb.setMenuEnabled(False)
-        self.vb.setAspectLocked()
+    def init_ui(self, asp_lock):
+        self.vb.setMenuEnabled(True)
+        self.vb.setAspectLocked(asp_lock)
         self.vb.enableAutoRange()
 
-        size_policy = QSizePolicy()
-        size_policy.setHorizontalPolicy(QSizePolicy.Expanding)
-        size_policy.setVerticalPolicy(QSizePolicy.Expanding)
-        self.setSizePolicy(size_policy)
-        self.setMinimumSize(512, 512)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+
+class PgPlotWidget(pg.PlotWidget):
+    def __init__(self, parent=None, w='row'):
+        super().__init__(parent, background=pg.mkColor('#29353D'))
+
+        self.curve = self.plot(pen='y')
+        self.vb = self.plotItem.getViewBox()
+
+        self.init_ui(w)
+
+    def init_ui(self, w):
+        self.showGrid(x=True, y=True)
+        self.setMouseTracking(True)
+
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        if w == 'row':
+            self.plotItem.setContentsMargins(0, 20, 20, 0)
+            self.plotItem.showAxis('top', True)
+            self.plotItem.showAxis('right', True)
+            self.plotItem.getAxis('top').setStyle(showValues=False)
+            self.plotItem.getAxis('right').setStyle(showValues=False)
+
+        else:
+            self.plotItem.setContentsMargins(10, 8, 0, 10)
+            self.plotItem.showAxis('top', True)
+            self.plotItem.showAxis('right', True)
+            self.plotItem.getAxis('top').setStyle(showValues=False)
+            self.plotItem.getAxis('left').setStyle(showValues=False)
+            self.plotItem.getAxis('bottom').setStyle(showValues=False)
+            self.plotItem.getViewBox().invertX(True)
+
+
+class CrossLine(pg.InfiniteLine):
+    def __init__(self,  angle=0, bounds=(0, 1)):
+
+        pen = pg.mkPen(color=pg.mkColor('#C8C86466'), width=1)
+        hover_pen = pg.mkPen(color=pg.mkColor('#FF000077'), width=1)
+
+        super().__init__(angle=angle, pen=pen, hoverPen=hover_pen, movable=True, bounds=bounds)
+
 
 
 class CrossCursor(pg.InfiniteLine):
-    def __init__(self, size=30, pos=None, pen=None, bounds=None, label=None, labelOpts=None, name=None):
-        pg.InfiniteLine.__init__(self, pos, 0, pen, False, bounds, None, label, labelOpts, name)
+    def __init__(self, size=30, pos=None, bounds=None, label=None, labelOpts=None, name=None):
+        pg.InfiniteLine.__init__(self, pos, 0, pg.mkColor('#C8C86477'), False, bounds, None, label, labelOpts, name)
 
         # self.vb = vb
         self.cursorSize = size

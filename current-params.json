@@ -35,10 +35,10 @@
   "frameSet": {
     "y-axis": 1,
     "binningAvg": false,
-    "x-axis": 2,
-    "column": 36,
+    "x-axis": 1,
+    "column": 365,
     "binning": 3,
-    "row": 248
+    "row": 116
   },
   "windowSize": {
     "height": 960,
@@ -76,7 +76,7 @@
   },
   "MDR-3": {
     "WL-start": 500.0,
-    "WL-inc": 2,
+    "WL-inc": 1,
     "WL-pos": 400.0,
     "grating-select": 1
   },

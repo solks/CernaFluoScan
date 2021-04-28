@@ -86,7 +86,8 @@ class CamWI(QFrame):
         self.camSelect = QComboBox(self)
         self.camSelect.setToolTip('Choose Camera...')
 
-        self.camFrame = PgGraphicsView(self)
+        self.camFrame = PgGraphicsView(self, aspect_locked=True)
+        self.camFrame.setMinimumSize(512, 512)
 
         self.exposure = QSlider(Qt.Vertical)
         self.gain = QSlider(Qt.Vertical)
