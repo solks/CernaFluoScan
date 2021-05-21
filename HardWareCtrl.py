@@ -38,21 +38,24 @@ class HardWare(object):
 
         ports = serial.tools.list_ports.comports()
         for p in ports:
-            if re.search(r'Serial', p.description):
-                # print(p.description)
+            if re.search(r'USB-to-Serial', p.description):
                 try:
+                    # print(p.description)
                     dev = serial.Serial(p.name, 9600, timeout=1)
                     time.sleep(1)
 
                     msg = b"DM\n"
+                    # msg = b"G+500"
                     dev.write(msg)
-                    while dev.out_waiting() > 0:
+                    while dev.out_waiting > 0:
                         time.sleep(0.1)
 
+                    time.sleep(1)
                     ans = dev.read(1)
-                    while dev.inWaiting() > 0:
+                    while dev.in_waiting > 0:
                         ans += dev.read(1)
 
+                    # print(ans.decode("utf-8"))
                     if re.search(r'Monochromator controller', ans.decode("utf-8")):
                         connected = True
                         break
@@ -80,6 +83,9 @@ class HardWare(object):
         WL0 = math.sin(steps * k + alpha_0) * c
         return WL0
 
+    def mono_toWLC(self, steps):
+        return self.mono_toWL(steps, self.conf['Andor']['CCD-w'] // 2)
+
     def mono_toWL(self, steps, n):
         c = self.conf['MDR']['c']
         k = self.conf['MDR']['k']
@@ -99,14 +105,16 @@ class HardWare(object):
             msg = b"GP\n"
 
             self.mono.write(msg)
-            while self.mono.out_waiting() > 0:
+            while self.mono.out_waiting > 0:
                 time.sleep(0.1)
 
+            time.sleep(1)
             ans = self.mono.read(1)
-            while self.mono.in_waiting() > 0:
+            while self.mono.in_waiting > 0:
                 ans += self.mono.read(1)
 
             ans_str = ans.decode("utf-8")
+            ans_str = ans_str[: -2]
             if ans_str != 'ERROR' and not re.search(r'[^0-9]+?]', ans_str):
                 steps = int(ans_str)
                 return steps
@@ -117,52 +125,58 @@ class HardWare(object):
 
     def mono_status(self):
         if self.monoStatus:
-            msg = b"GS\n"
+            msg = b"DS\n"
 
             self.mono.write(msg)
-            while self.mono.out_waiting() > 0:
+            while self.mono.out_waiting > 0:
                 time.sleep(0.1)
 
+            time.sleep(1)
             ans = self.mono.read(1)
-            while self.mono.in_waiting() > 0:
+            while self.mono.in_waiting > 0:
                 ans += self.mono.read(1)
 
-            return ans.decode("utf-8")
+            ans_str = ans.decode("utf-8")
+            return ans_str[: -2]
         else:
             return False
 
     def mono_goto(self, pos):
         if self.monoStatus:
-            msg = b"GA" + bytes(round(abs(pos))) + b"\n"
+            msg = "GA" + str(round(abs(pos))) + "\n"
 
-            self.mono.write(msg)
-            while self.mono.out_waiting() > 0:
+            self.mono.write(msg.encode())
+            while self.mono.out_waiting > 0:
                 time.sleep(0.1)
 
+            time.sleep(1)
             ans = self.mono.read(1)
-            while self.mono.in_waiting() > 0:
+            while self.mono.in_waiting > 0:
                 ans += self.mono.read(1)
 
-            return ans.decode("utf-8")
+            ans_str = ans.decode("utf-8")
+            return ans_str[: -2]
         else:
             return False
 
     def mono_move(self, dst):
         if self.monoStatus:
             if dst >= 0:
-                msg = b"G+" + bytes(round(dst)) + b"\n"
+                msg = "G+" + str(round(dst)) + "\n"
             else:
-                msg = b"G-" + bytes(round(abs(dst))) + b"\n"
+                msg = "G-" + str(round(abs(dst))) + "\n"
 
-            self.mono.write(msg)
-            while self.mono.out_waiting() > 0:
+            self.mono.write(msg.encode())
+            while self.mono.out_waiting > 0:
                 time.sleep(0.1)
 
+            time.sleep(1)
             ans = self.mono.read(1)
-            while self.mono.in_waiting() > 0:
+            while self.mono.in_waiting > 0:
                 ans += self.mono.read(1)
 
-            return ans.decode("utf-8")
+            ans_str = ans.decode("utf-8")
+            return ans_str[: -2]
         else:
             return False
 
@@ -170,14 +184,16 @@ class HardWare(object):
         if self.monoStatus:
             msg = b"G0\n"
             self.mono.write(msg)
-            while self.mono.out_waiting() > 0:
+            while self.mono.out_waiting > 0:
                 time.sleep(0.1)
 
+            time.sleep(1)
             ans = self.mono.read(1)
-            while self.mono.in_waiting() > 0:
+            while self.mono.in_waiting > 0:
                 ans += self.mono.read(1)
 
-            return ans.decode("utf-8")
+            ans_str = ans.decode("utf-8")
+            return ans_str[: -2]
         else:
             return False
 
@@ -201,3 +217,7 @@ class HardWare(object):
     def stage_stop(self, axis='X'):
         self.mot[axis]._port.send_message(
             MGMSG_MOT_MOVE_STOP(chan_ident=self.mot[axis]._chan_ident, stop_mode=0x02))
+
+    def shut_down(self):
+        if self.mono:
+            self.mono.close()

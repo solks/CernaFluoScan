@@ -116,9 +116,12 @@ class AppWindow(QMainWindow):
     def shut_down(self):
         print('Shutting down the Andor CCD...')
         # self.ccd.shut_down()
+        print('Shutting down HardWare...')
+        self.hardware.shut_down()
 
         print('Stopping processes...')
         self.scanModule.stop_threads()
+        self.spectraModule.stop_threads()
         self.CameraSpWI.shut_down()
         self.CameraScWI.shut_down()
 

@@ -35,10 +35,10 @@
   "frameSet": {
     "y-axis": 1,
     "binningAvg": false,
-    "x-axis": 1,
-    "column": 365,
+    "x-axis": 0,
+    "column": 683,
     "binning": 3,
-    "row": 116
+    "row": 115
   },
   "windowSize": {
     "height": 960,
@@ -76,8 +76,8 @@
   },
   "MDR-3": {
     "WL-start": 500.0,
-    "WL-inc": 1,
-    "WL-pos": 400.0,
+    "WL-inc": 2,
+    "WL-pos": 500.3394434606472,
     "grating-select": 1
   },
   "scanSet": {

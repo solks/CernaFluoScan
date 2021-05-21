@@ -29,20 +29,6 @@ class SpectraModuleUI(QWidget):
         mono = param_set['MDR-3']
         andor = param_set['Andor']
 
-        # Frame parameter set
-        self.frameRowSelect.setValue(frame['row'])
-        self.frameColSelect.setValue(frame['column'])
-
-        self.rowBinning.setValue(frame['binning'])
-        if frame['binningAvg']:
-            self.avgBinning.setChecked(True)
-
-        # self.XUnits.button(frame['x-axis']).setChecked(True)
-        self.XUnits.button(frame['x-axis']).click()
-
-        # self.YUnits.button(frame['y-axis']).setChecked(True)
-        self.YUnits.button(frame['y-axis']).click()
-
         # Hardware parameter set
         self.x_pos.setText(str(stage['x']))
         self.y_pos.setText(str(stage['y']))
@@ -56,6 +42,21 @@ class SpectraModuleUI(QWidget):
         self.monoStartup.emit()
 
         self.laserSelect.setCurrentIndex(laser['source-id'])
+
+        # Frame parameter set
+        self.frameRowSelect.setValue(frame['row'])
+        self.frameColSelect.setValue(frame['column'])
+        self.frameColSelect.setValue(frame['column'])
+
+        self.rowBinning.setValue(frame['binning'])
+        if frame['binningAvg']:
+            self.avgBinning.setChecked(True)
+
+        # self.XUnits.button(frame['x-axis']).setChecked(True)
+        self.XUnits.button(frame['x-axis']).click()
+
+        # self.YUnits.button(frame['y-axis']).setChecked(True)
+        self.YUnits.button(frame['y-axis']).click()
 
         # Andor parameter set
         self.exposureTime.setValue(andor['exposure'])
@@ -143,7 +144,7 @@ class SpectraModuleUI(QWidget):
         self.monoCalibrate.setMinimumSize(90, 30)
         self.monoStop = QPushButton('Stop')
         self.monoStop.setMinimumSize(90, 30)
-        self.monoCurrentPos = QLabel('5000 Å')
+        self.monoCurrentPos = QLabel('500.00 nm')
         mono_pos_lbl = QLabel('Current position: ')
         self.monoGridSelect = QComboBox(self)
         self.monoGridSelect.addItems(['300 g/mm', '600 g/mm'])
