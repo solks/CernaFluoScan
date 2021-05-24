@@ -2,7 +2,7 @@ import time
 from functools import partial
 from math import ceil
 from threading import Thread, Event
-from PyQt5.QtCore import QThread, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import QThread, QRunnable, QThreadPool, QMutex, pyqtSignal, pyqtSlot, QObject
 
 import numpy as np
 
@@ -11,7 +11,7 @@ class SpectraModuleActions(QObject):
 
     spectraOverlap = 80
 
-    spectraFinished = pyqtSignal()
+    spectrumAcquired = pyqtSignal()
 
     def __init__(self, ui, p_set, hardware, ccd):
         super().__init__()
@@ -31,14 +31,17 @@ class SpectraModuleActions(QObject):
         self.coordinates = np.arange(self.spWidth, dtype=np.float)
         self.n_factor = 1
 
-        self.monoRoutine = Thread()
         self.mono_positions = [None]*self.paramSet['MDR-3']['WL-inc']
 
-        self.spCmp = SpectrumCompilation(self.ccd, self.hardware, self.spectraFinished)
-        self.spCmp.set_frame_size(self.spData, self.ccdWidth, self.spectraOverlap)
-        self.spCmp.start()
+        self.thread_pool = QThreadPool()
+        self.mutex = QMutex()
+        # self.thread_pool.setMaxThreadCount(3)
 
-        self.monoChkState = MonoChkState(self.hardware, self.mainform, self.paramSet['MDR-3'])
+        self.spectrumCmp = SpectrumCompilation(self)
+        self.spectrumCmp.set_frame_size(self.spData, self.ccdWidth, self.spectraOverlap)
+        self.spectrumCmp.setAutoDelete(False)
+
+        self.monoChkState = MonoChkState(self)
         self.monoChkState.setAutoDelete(False)
 
         # self.framedata = np.zeros((255, 2048), dtype=np.uint16)
@@ -59,7 +62,7 @@ class SpectraModuleActions(QObject):
         mf.stop_move.clicked.connect(self.stage_stop)
 
         mf.acquire_btn.clicked.connect(self.acquire)
-        self.spectraFinished.connect(self.show_spectrum)
+        self.spectrumAcquired.connect(self.show_spectrum)
 
         mf.step_val.currentTextChanged.connect(self.stepinfo_change)
 
@@ -238,7 +241,7 @@ class SpectraModuleActions(QObject):
                 data_width = self.spData.shape[1]
                 self.spData = previous_data[:, 0:data_width]
 
-        self.spCmp.set_frame_size(self.spData, self.ccdWidth, self.spectraOverlap)
+        self.spectrumCmp.set_frame_size(self.spData, self.ccdWidth, self.spectraOverlap)
         self.coordinates = np.arange(self.spWidth, dtype=np.float)
         self.x_units_change()
 
@@ -262,7 +265,7 @@ class SpectraModuleActions(QObject):
         self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
 
         self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'], False)
-        self.spCmp.set_range_points(self.mono_positions)
+        self.spectrumCmp.set_range_points(self.mono_positions)
 
     def WL_end_inc(self):
         WL_inc = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdWidth - self.spectraOverlap)
@@ -274,7 +277,7 @@ class SpectraModuleActions(QObject):
         self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
 
         self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'], True)
-        self.spCmp.set_range_points(self.mono_positions)
+        self.spectrumCmp.set_range_points(self.mono_positions)
 
     def WL_end_dec(self):
         if self.paramSet['MDR-3']['WL-inc'] > 1:
@@ -285,7 +288,7 @@ class SpectraModuleActions(QObject):
             self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
 
             self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'], True)
-            self.spCmp.set_range_points(self.mono_positions)
+            self.spectrumCmp.set_range_points(self.mono_positions)
 
     def mono_centralWL_set(self):
         # Position (in steps) is calculated according to the first pixel, WL - to the center pixel
@@ -295,10 +298,7 @@ class SpectraModuleActions(QObject):
         pos_set = self.hardware.mono_toSteps(WL_fp)
         ret = self.hardware.mono_goto(pos_set)
         if ret == 'OK':
-            # self.monoRoutine = Thread(target=self.upd_mono_pos)
-            # self.monoRoutine.start()
-            # self.monoChkState.run()
-            QThreadPool.globalInstance().start(self.monoChkState)
+            self.thread_pool.start(self.monoChkState)
 
     def startup(self):
         self.WL_start_change()
@@ -317,9 +317,7 @@ class SpectraModuleActions(QObject):
     def mono_calibration(self):
         ans = self.hardware.mono_move_start()
         if ans == 'OK':
-            # self.monoRoutine = Thread(target=self.upd_mono_pos)
-            # self.monoRoutine.start()
-            QThreadPool.globalInstance().start(self.monoChkState)
+            self.thread_pool.start(self.monoChkState)
         elif ans == 'BUSY':
             self.mainform.statusBar.showMessage('Monochromator is busy. Please try again later.')
         else:
@@ -418,11 +416,10 @@ class SpectraModuleActions(QObject):
         self.upd_frame_section()
 
     def acquire(self):
-        self.spCmp.acquisition.set()
-        # QThreadPool.globalInstance().start(self.monoChkState)
+        self.thread_pool.start(self.spectrumCmp)
 
     def stop_threads(self):
-        self.spCmp.stop()
+        self.spectrumCmp.stop()
         self.monoChkState.stop()
 
 
@@ -430,13 +427,10 @@ class MonoChkState(QRunnable):
 
     stop_event = Event()
 
-    def __init__(self, hardware, mainform, p_set):
+    def __init__(self, spectra_module):
         super().__init__()
 
-        self.hardware = hardware
-        self.monoPosLbl = mainform.monoCurrentPos
-        self.statusBar = mainform.statusBar
-        self.paramSet = p_set
+        self.spModule = spectra_module
 
     def stop(self):
         if not self.stop_event.is_set():
@@ -445,27 +439,28 @@ class MonoChkState(QRunnable):
     def run(self):
         while not self.stop_event.is_set():
             time.sleep(0.5)
-            current_pos = self.hardware.mono_pos()
+            self.spModule.mutex.lock()
+            current_pos = self.spModule.hardware.mono_pos()
             if current_pos is not False:
-                current_WL = self.hardware.mono_toWLC(current_pos)
-                self.paramSet['WL-pos'] = current_WL
-                self.monoPosLbl.setText("{0:.2f}".format(current_WL) + ' nm')
+                current_WL = self.spModule.hardware.mono_toWLC(current_pos)
+                self.spModule.paramSet['MDR-3']['WL-pos'] = current_WL
+                self.spModule.mainform.monoCurrentPos.setText("{0:.2f}".format(current_WL) + ' nm')
             else:
-                self.monoPosLbl.setText(" -- ")
+                self.spModule.mainform.monoCurrentPos.setText(" -- ")
 
-            status = self.hardware.mono_status()
+            status = self.spModule.hardware.mono_status()
+            self.spModule.mutex.unlock()
             if status == 'OK':
                 break
             elif status == 'ERROR':
-                self.statusBar.showMessage('Monochromator position check error...')
+                self.spModule.mainform.statusBar.showMessage('Monochromator position check error...')
                 break
 
         return
 
 
-class SpectrumCompilation(QThread):
+class SpectrumCompilation(QRunnable):
 
-    acquisition = Event()
     frame_parsed = Event()
     stop_event = Event()
 
@@ -477,14 +472,12 @@ class SpectrumCompilation(QThread):
 
     frame_index = 0
 
-    def __init__(self, ccd, hardware, finished):
+    def __init__(self, spectra_module):
         super().__init__()
 
-        self.ccd = ccd
-        self.hardware = hardware
-        self.finished = finished
+        self.spModule = spectra_module
 
-        self.ccd.frameAcquired.connect(self.framedata_handler)
+        self.spModule.ccd.frameAcquired.connect(self.framedata_handler)
 
     def set_range_points(self, p):
         self.mono_positions = p
@@ -511,20 +504,29 @@ class SpectrumCompilation(QThread):
 
     def run(self):
         while not self.stop_event.is_set():
-            if self.acquisition.wait(0.2):
-                for pos in self.mono_positions:
-                    self.hardware.mono_goto(pos)
+            for pos in self.mono_positions:
+                self.spModule.mutex.lock()
+                self.spModule.hardware.mono_goto(pos)
+                self.spModule.thread_pool.start(self.spModule.monoChkState)
+                self.spModule.mutex.unlock()
 
-                    while self.hardware.mono_status() != 'OK':
-                        time.sleep(0.5)
+                while True:
+                    self.spModule.mutex.lock()
+                    status = self.spModule.hardware.mono_status()
+                    self.spModule.mutex.unlock()
+                    if status == 'OK':
+                        break
 
-                    self.ccd.frame()
-                    self.frame_parsed.wait()
-                    self.frame_parsed.clear()
+                    time.sleep(0.5)
 
-                self.acquisition.clear()
-                self.frame_index = 0
+                self.spModule.ccd.frame()
+                self.frame_parsed.wait()
+                self.frame_parsed.clear()
 
-                self.finished.emit()
+            self.frame_index = 0
+
+            self.spModule.spectrumAcquired.emit()
+
+            return
 
         return
