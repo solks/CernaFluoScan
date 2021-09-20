@@ -5,7 +5,7 @@ import serial.tools.list_ports
 import math
 from thorpy.comm.discovery import discover_stages
 from thorpy.message.motorcontrol import *
-
+from CubeController import *
 
 class HardWare(object):
 
@@ -16,17 +16,26 @@ class HardWare(object):
 
     gratingIndex = 1
 
+    cubes = {}
+
+
     def __init__(self, config):
         self.conf = config
 
-        # stages = list(discover_stages())
-        # for s in stages:
-        #     if s._port.serial_number == self.conf["Thorlabs"]["stageX"]:
-        #         self.mot.update({'X': s})
-        #     elif s._port.serial_number == self.conf["Thorlabs"]["stageY"]:
-        #         self.mot.update({'Y': s})
-        #     elif s._port.serial_number == self.conf["Thorlabs"]["stageZ"]:
-        #         self.mot.update({'Z': s})
+        '''stages = list(discover_stages())
+        for s in stages:
+            if s._port.serial_number == self.conf["Thorlabs"]["stageX"]:
+                self.mot.update({'X': s})
+            elif s._port.serial_number == self.conf["Thorlabs"]["stageY"]:
+                self.mot.update({'Y': s})
+            elif s._port.serial_number == self.conf["Thorlabs"]["stageZ"]:
+                 self.mot.update({'Z': s})
+        '''
+
+        axes = ['X', 'Y', 'Z']
+
+        for axis in axes:
+            self.cubes[axis] = CubeController(self.conf["Thorlabs"]["stage"+axis])
 
         self.minStageStep = self.conf["Thorlabs"]["stageStep"]
 
@@ -197,27 +206,34 @@ class HardWare(object):
         else:
             return False
 
-    def stage_pos(self, axis='X', force=False):
-        s = self.mot[axis]
+    def get_stage_position(self, axis='X', force=False):
+        #s = self.mot[axis]
+        cube = self.cubes[axis]
         if force:
-            return s.position()
+            return cube.position
         else:
-            while s.status_in_motion_forward or s.status_in_motion_reverse or s.status_in_motion_jogging_forward or s.status_in_motion_jogging_reverse or s.status_in_motion_homing:
+            while cube.is_moving:
                 time.sleep(1)
-            return s.position()
+            return cube.position
 
     def stage_move(self, axis='X', dst=0):
-        self.mot[axis]._port.send_message(
-            MGMSG_MOT_MOVE_RELATIVE_long(chan_ident=self.mot[axis]._chan_ident, relative_distance=dst))
+        self.cubes[axis].move_steps(dst)
+        #self.mot[axis]._port.send_message(
+        #    MGMSG_MOT_MOVE_RELATIVE_long(chan_ident=self.mot[axis]._chan_ident, relative_distance=dst))
 
     def stage_goto(self, axis='X', pos=0):
-        self.mot[axis]._port.send_message(
-            MGMSG_MOT_MOVE_ABSOLUTE_long(chan_ident=self.mot[axis]._chan_ident, absolute_distance=pos))
+        self.cubes[axis].move_to(pos)
+        #self.mot[axis]._port.send_message(
+        #    MGMSG_MOT_MOVE_ABSOLUTE_long(chan_ident=self.mot[axis]._chan_ident, absolute_distance=pos))
 
     def stage_stop(self, axis='X'):
-        self.mot[axis]._port.send_message(
-            MGMSG_MOT_MOVE_STOP(chan_ident=self.mot[axis]._chan_ident, stop_mode=0x02))
+        self.cubes[axis].stop()
+        #self.mot[axis]._port.send_message(
+        #    MGMSG_MOT_MOVE_STOP(chan_ident=self.mot[axis]._chan_ident, stop_mode=0x02))
 
     def shut_down(self):
+        for cube in self.cubes:
+            self.cubes[cube].shutdown()
+
         if self.mono:
             self.mono.close()
