@@ -390,7 +390,7 @@ class SpectraModuleActions(QObject):
     def stage_move(self, axis, direction, checked=False):
         steps = int(self.mainform.step_val.currentText()) * direction
 
-        self.hardware.move_relaive(axis, steps)
+        self.hardware.stage_move(axis, steps)
         new_pos = int(self.mainform.x_pos.text()) + steps
         self.paramSet['stagePos'][axis] = new_pos
 
@@ -403,10 +403,10 @@ class SpectraModuleActions(QObject):
 
     def stage_stop(self):
         for axis in ('X', 'Y', 'Z'):
-            self.hardware.mot_stop(axis)
+            self.hardware.stage_stop(axis)
 
         for axis in ('X', 'Y', 'Z'):
-            pos = self.hardware.stage_pos(axis)
+            pos = self.hardware.get_stage_position(axis)
             self.paramSet['stagePos'][axis] = pos
             self.mainform.x_pos.setText(str(pos))
 
