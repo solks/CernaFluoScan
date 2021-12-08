@@ -32,8 +32,7 @@
     "VSAVoltage": 0,
     "ADCRate": 0,
     "gain": 0,
-    "temperature": -20,
-    "cooler": 1
+    "temperature": -10
   },
   "MDR-3": {
     "WL-start": 400,

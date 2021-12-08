@@ -1,9 +1,10 @@
-from PyQt5.QtWidgets import (QWidget, QFrame, QSplitter, QSizePolicy,
+from PyQt5.QtWidgets import (QWidget, QMainWindow, QFrame, QSplitter, QSizePolicy,
                              QPushButton, QToolButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
                              QRadioButton, QLineEdit, QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem,
                              QHeaderView, QTabWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView)
 from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
+import qdarkstyle
 
 import pyqtgraph as pg
 
@@ -89,11 +90,16 @@ class SpectraModuleUI(QWidget):
             self.accumulationCycle.setEnabled(True)
             self.kineticSeries.setEnabled(True)
             self.kineticCycle.setEnabled(True)
-        elif acq_mode == 4:
+        elif acq_mode == 3:
             self.accumulationFrames.setEnabled(False)
             self.accumulationCycle.setEnabled(True)
             self.kineticSeries.setEnabled(True)
             self.kineticCycle.setEnabled(False)
+        elif acq_mode == 4:
+            self.accumulationFrames.setEnabled(False)
+            self.accumulationCycle.setEnabled(False)
+            self.kineticSeries.setEnabled(False)
+            self.kineticCycle.setEnabled(True)
 
     def ui_construct(self, conf):
         # Main splitters
@@ -308,7 +314,7 @@ class SpectraModuleUI(QWidget):
         self.XUnits.button(0).setChecked(True)
 
         self.rowBinning = QSpinBox(self)
-        self.rowBinning.setRange(1, 256)
+        self.rowBinning.setRange(1, 255)
         self.avgBinning = QCheckBox('Average value')
         row_binning_lbl = QLabel('Binning', self)
 
@@ -384,9 +390,15 @@ class SpectraModuleUI(QWidget):
         # self.exposureTime.setStepType(QDoubleSpinBox.AdaptiveDecimalStepType)
         exp_time_lbl = QLabel('Exposure time (sec)')
 
+        temperature_lbl = QLabel('Temperature (°C):')
+        self.tCurrent = QLabel('--')
+        self.tCurrent.setStyleSheet("font-weight: bold; color: yellow")
+        self.tSet = QPushButton('Set')
+        self.tSet.setStyleSheet('QPushButton {min-width: 45px;}')
+
         self.acquisitionMode = QComboBox(self)
-        self.acquisitionMode.addItems(['Single', 'Accumulate', 'Kinetic', 'Photon Count', 'Fast Kinetic'])
-        self.acquisitionMode.model().item(3).setEnabled(False)
+        self.acquisitionMode.addItems(['Single', 'Accumulate', 'Kinetic', 'Fast Kinetic', 'Continuous'])
+        # self.acquisitionMode.model().item(4).setEnabled(False)
         self.accumulationFrames = QSpinBox(self)
         self.accumulationFrames.setRange(1, 50)
         self.accumulationCycle = QDoubleSpinBox(self)
@@ -417,7 +429,7 @@ class SpectraModuleUI(QWidget):
         read_mode_lbl = QLabel('Readout Mode', self)
 
         self.readoutRate = QComboBox(self)
-        self.readoutRate.addItems(['50kHz at 16-bit', '1MHz at 16-bit', '3MHz at 16-bit'])
+        self.readoutRate.addItems(['3MHz at 16-bit', '1MHz at 16-bit', '50kHz at 16-bit'])
         self.preAmpGain = QComboBox(self)
         self.preAmpGain.addItems(['1x', '2x', '4x'])
         readout_rate_lbl = QLabel('Readout Rate')
@@ -438,6 +450,12 @@ class SpectraModuleUI(QWidget):
         cam_exposure_lay = QGridLayout(cam_exposure_group)
         cam_exposure_lay.addWidget(exp_time_lbl, 0, 0)
         cam_exposure_lay.addWidget(self.exposureTime, 0, 1)
+
+        cam_temperature_group = QGroupBox("CCD temperature")
+        cam_temperature_lay = QGridLayout(cam_temperature_group)
+        cam_temperature_lay.addWidget(temperature_lbl, 0, 0)
+        cam_temperature_lay.addWidget(self.tCurrent, 0, 1)
+        cam_temperature_lay.addWidget(self.tSet, 0, 2)
 
         cam_timing_group = QGroupBox("Acquisition timings")
         cam_timing_lay = QGridLayout(cam_timing_group)
@@ -472,6 +490,94 @@ class SpectraModuleUI(QWidget):
 
         cam_settings_lay.addWidget(WL_range_group)
         cam_settings_lay.addWidget(cam_exposure_group)
+        cam_settings_lay.addWidget(cam_temperature_group)
         cam_settings_lay.addWidget(cam_timing_group)
         cam_settings_lay.addWidget(cam_mode_group)
         cam_settings_lay.addWidget(cam_readout_group)
+
+
+class SetTemperatureWindow(QMainWindow):
+    def __init__(self, ccd):
+        super().__init__()
+
+        self.setup_ui()
+
+        self.ccd = ccd
+
+        rng = self.ccd.get_temperature_range()
+        sr = "{1} to {0}"
+        self.tTarget.setMinimum(rng[0])
+        self.tTarget.setMaximum(rng[1])
+        self.tRange.setText(sr.format(*rng))
+
+        self.tSet.clicked.connect(self.set_temperature)
+        self.cooler.buttonClicked.connect(self.set_cooler)
+
+        self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+
+    def setup_ui(self):
+        temperature_group = QFrame(self)
+        self.tTarget = QSpinBox(self)
+        self.tSet = QPushButton('Set temperature')
+        self.tCurrent = QLabel('--')
+        self.tCurrent.setStyleSheet("font-weight: bold")
+        self.tRange = QLabel()
+        self.tRange.setStyleSheet("color: grey")
+        temperature_lbl = QLabel('Current temperature: ')
+        range_lbl = QLabel('Temperature range: ')
+        range_lbl.setStyleSheet("color: grey")
+        temperature_lay = QGridLayout(temperature_group)
+        temperature_lay.addWidget(temperature_lbl, 0, 0)
+        temperature_lay.addWidget(self.tCurrent, 0, 1)
+        temperature_lay.addWidget(self.tTarget, 1, 0)
+        temperature_lay.addWidget(self.tSet, 1, 1)
+        temperature_lay.addWidget(range_lbl, 2, 0)
+        temperature_lay.addWidget(self.tRange, 2, 1)
+
+        cooler_group = QFrame(self)
+        cooler_radio0 = QRadioButton('On')
+        cooler_radio1 = QRadioButton('Off')
+        cooler_radio1.setChecked(True)
+        self.cooler = QButtonGroup(self)
+        self.cooler.addButton(cooler_radio0, id=0)
+        self.cooler.addButton(cooler_radio1, id=1)
+        cooler_lbl = QLabel('Cooler: ')
+        cooler_lay = QHBoxLayout(cooler_group)
+        cooler_lay.addWidget(cooler_lbl)
+        cooler_lay.addWidget(cooler_radio0)
+        cooler_lay.addWidget(cooler_radio1)
+
+        cooling_settings = QGroupBox("CCD Cooling settings")
+        cooling_settings_lay = QVBoxLayout(cooling_settings)
+        cooling_settings_lay.addWidget(temperature_group)
+        cooling_settings_lay.addWidget(cooler_group)
+
+        # confirmation_group = QFrame(self)
+        # self.confirmButton = QPushButton('Close')
+        # confirmation_lay = QHBoxLayout(confirmation_group)
+        # confirmation_lay.addStretch()
+        # confirmation_lay.addWidget(self.confirmButton)
+        # confirmation_lay.addStretch()
+
+        main_widget = QFrame(self)
+        main_lay = QVBoxLayout(main_widget)
+        main_lay.addWidget(cooling_settings)
+        # main_lay.addWidget(confirmation_group)
+
+        self.setCentralWidget(main_widget)
+
+    def set_cooler(self):
+        if self.cooler.button(0).isChecked():
+            self.ccd.set_cooler(True)
+        else:
+            self.ccd.set_temperature(-10)
+
+    def set_temperature(self):
+        t = self.tTarget.value()
+        self.ccd.set_temperature(t)
+
+        if not self.cooler.button(0).isChecked():
+            self.cooler.button(0).setChecked(True)
+
+    def open(self):
+        self.show()

@@ -2,7 +2,11 @@ import time
 from functools import partial
 from math import ceil
 from threading import Thread, Event
+
+from PyQt5.QtWidgets import (QProgressDialog)
 from PyQt5.QtCore import QThread, QRunnable, QThreadPool, QMutex, pyqtSignal, pyqtSlot, QObject
+
+from SpectraModuleUI import SetTemperatureWindow
 
 import numpy as np
 
@@ -13,6 +17,8 @@ class SpectraModuleActions(QObject):
 
     spectrumAcquired = pyqtSignal()
 
+    statusDataUpdated = pyqtSignal(dict)
+
     def __init__(self, ui, p_set, hardware, ccd):
         super().__init__()
 
@@ -20,6 +26,8 @@ class SpectraModuleActions(QObject):
         self.paramSet = p_set
         self.hardware = hardware
         self.ccd = ccd
+
+        self.tSettings = SetTemperatureWindow(self.ccd)
 
         self.ccdWidth = self.ccd.conf['CCD-w']
         self.ccdHeight = self.ccd.conf['CCD-h']
@@ -43,6 +51,9 @@ class SpectraModuleActions(QObject):
 
         self.monoChkState = MonoChkState(self)
         self.monoChkState.setAutoDelete(False)
+
+        self.statusUpdateThread = StatusUpdate(self)
+        self.statusUpdateThread.start()
 
         # self.framedata = np.zeros((255, 2048), dtype=np.uint16)
         # self.spectrumAcquisition.setArr()
@@ -84,7 +95,7 @@ class SpectraModuleActions(QObject):
         # mf.spectrum.scene().sigMouseClicked.connect(self.spectrum_mouse_click)
 
         mf.rowBinning.valueChanged.connect(self.ccd_row_binning)
-        mf.avgBinning.stateChanged.connect(self.ccd_row_binning)
+        mf.avgBinning.toggled.connect(self.ccd_binning_avg)
 
         mf.XUnits.buttonClicked.connect(self.x_units_change)
         mf.YUnits.buttonClicked.connect(self.y_units_change)
@@ -102,6 +113,9 @@ class SpectraModuleActions(QObject):
         mf.preAmpGain.currentIndexChanged.connect(self.gain_change)
         mf.VSSpeed.currentIndexChanged.connect(self.shift_speed_change)
         mf.VSAVoltage.currentIndexChanged.connect(self.shift_speed_change)
+        mf.tSet.clicked.connect(self.show_tsettings)
+
+        self.statusDataUpdated.connect(self.update_satatus_data)
 
     def ccd_vline_pos(self, e):
         column = ceil(e.getXPos())
@@ -140,6 +154,10 @@ class SpectraModuleActions(QObject):
 
     def ccd_row_binning(self, val):
         self.paramSet['frameSet']['binning'] = val
+        self.upd_spectrum()
+
+    def ccd_binning_avg(self, is_checked):
+        self.paramSet['frameSet']['binningAvg'] = is_checked
         self.upd_spectrum()
 
     def x_units_change(self):
@@ -189,7 +207,7 @@ class SpectraModuleActions(QObject):
         self.paramSet['frameSet']['y-axis'] = units_id
 
         if units_id == 1:
-            self.n_factor = 1 / self.mainform.exposureTime.value()
+            self.n_factor = 1 / self.paramSet['Andor']['exposure']
         else:
             self.n_factor = 1
 
@@ -197,15 +215,15 @@ class SpectraModuleActions(QObject):
 
     def upd_spectrum(self, row=-1):
         if row == -1:
-            row = self.mainform.frameRowSelect.value() - 1
+            row = self.paramSet['frameSet']['row'] - 1
 
-        bin_rows = self.mainform.rowBinning.value()
+        bin_rows = self.paramSet['frameSet']['binning']
 
         if bin_rows > 1:
             min_row = ceil(row - bin_rows / 2)
             max_row = ceil(row + bin_rows / 2)
 
-            if self.mainform.avgBinning.isChecked():
+            if self.paramSet['frameSet']['binningAvg']:
                 self.mainform.spectrum.curve.setData(
                     x=self.coordinates,
                     y=np.average(self.spData[min_row:max_row, :], axis=0) * self.n_factor
@@ -329,56 +347,62 @@ class SpectraModuleActions(QObject):
     def exposure_change(self):
         exp_time = self.mainform.exposureTime.value()
         self.paramSet['Andor']['exposure'] = exp_time
-        # self.ccd.set_exposure(exp_time)
+        self.ccd.set_exposure(exp_time)
 
     def acq_mode_change(self, mode):
         self.paramSet['Andor']['AcqMode']['mode'] = mode
         self.mainform.mode_prm_enable(mode)
-        # self.ccd.set_acq_mode(mode)
+        self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def trig_mode_change(self, mode):
         self.paramSet['Andor']['trigMode'] = mode
-        # self.ccd.set_trig_mode(mode)
+        self.ccd.set_trig_mode(mode)
 
     def read_mode_change(self, mode):
         self.paramSet['Andor']['readMode'] = mode
-        # self.ccd.set_read_mode(mode)
+        self.ccd.set_read_mode(mode)
 
     def accum_frames_change(self):
         n = self.mainform.accumulationFrames.value()
         self.paramSet['Andor']['AcqMode']['accumFrames'] = n
-        # self.ccd.set_accum_frames(n)
+        self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def accum_cycle_change(self):
         cycle_time = self.mainform.accumulationCycle.value()
         self.paramSet['Andor']['AcqMode']['accumCycle'] = cycle_time
-        # self.ccd.set_accum_cycle(cycle_time)
+        self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def knt_series_change(self):
         n = self.mainform.kineticSeries.value()
         self.paramSet['Andor']['AcqMode']['kSeries'] = n
-        # self.ccd.set_knt_series(n)
+        self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def knt_cycle_change(self):
         cycle_time = self.mainform.kineticCycle.value()
         self.paramSet['Andor']['AcqMode']['kCycle'] = cycle_time
-        # self.ccd.set_knt_cycle(cycle_time)
+        self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def adc_rate_change(self, rate_idx):
         self.paramSet['Andor']['ADCRate'] = rate_idx
-        # self.ccd.set_adc_rate(rate_idx)
+        self.ccd.set_adc_rate(rate_idx)
 
     def gain_change(self, gain_idx):
         self.paramSet['Andor']['gain'] = gain_idx
-        # self.ccd.set_gain(gain_idx)
+        self.ccd.set_preamp(gain_idx)
 
     def shift_speed_change(self, speed_idx):
         self.paramSet['Andor']['VSSpeed'] = speed_idx
-        # self.ccd.set_shift_speed(speed_idx)
+        self.ccd.set_shift_speed(speed_idx)
 
     def vsa_volt_change(self, vsa_idx):
         self.paramSet['Andor']['VSAVoltage'] = vsa_idx
-        # self.ccd.set_vsa_volt(vsa_idx)
+        self.ccd.set_vsa_volt(vsa_idx)
+
+    def show_tsettings(self):
+        if self.tSettings.isVisible():
+            self.tSettings.activateWindow()
+        else:
+            self.tSettings.open()
 
     def stepinfo_change(self, val):
         steps = int(val)
@@ -418,9 +442,75 @@ class SpectraModuleActions(QObject):
     def acquire(self):
         self.thread_pool.start(self.spectrumCmp)
 
+    def update_satatus_data(self, statuses):
+        # CCD cooling status
+        if statuses['ccd_cooling'] in ['not_reached', 'not_stabilized']:
+            self.mainform.tCurrent.setStyleSheet("color: red")
+        elif statuses['ccd_cooling'] == 'stabilized':
+            self.mainform.tCurrent.setStyleSheet("color: green")
+        elif statuses['ccd_cooling'] == 'drifted':
+            self.mainform.tCurrent.setStyleSheet("color: yellow")
+        else:
+            self.mainform.tCurrent.setStyleSheet("color: grey")
+
+        # Current temperature
+        self.tSettings.tCurrent.setText(str(statuses['ccd_temperature']))
+        self.mainform.tCurrent.setText(str(statuses['ccd_temperature']))
+
     def stop_threads(self):
         self.spectrumCmp.stop()
         self.monoChkState.stop()
+
+        t = self.ccd.get_temperature()
+        status = self.ccd.temperature_status()
+        if t < -10:
+            self.camShotdownProgress = QProgressDialog("CCD temperature stabilization...\n Do not turn off the camera "
+                                                       "cooling unit and power supply!", "Cancel", 0, 100)
+            # self.camShotdownProgress.setCancelButton(False)
+            self.camShotdownProgress.show()
+
+            t_target = -10
+            self.ccd.set_temperature(t_target)
+
+            while self.ccd.temperature_status() != 'stabilized':
+                t_current = self.ccd.get_temperature()
+                self.camShotdownProgress.setValue(int(100 * (t_target - t_current) / (t_target - t)))
+                time.sleep(0.5)
+
+            self.camShotdownProgress.setValue(100)
+
+        self.ccd.set_cooler(False)
+
+        self.statusUpdateThread.stop()
+
+        if self.tSettings.isVisible():
+            self.tSettings.close()
+
+
+class StatusUpdate (QThread):
+
+    stop_event = Event()
+
+    statuses = {'ccd_temperature': 0, 'ccd_cooling': 'off'}
+
+    def __init__(self, sp_module):
+        super().__init__()
+        self.spModule = sp_module
+
+    def stop(self):
+        if not self.stop_event.is_set():
+            self.stop_event.set()
+
+    def run(self):
+        while not self.stop_event.is_set():
+            # CCD cooling
+            self.statuses['ccd_temperature'] = round(self.spModule.ccd.get_temperature(), 1)
+            self.statuses['ccd_cooling'] = self.spModule.ccd.temperature_status()
+            # print(self.statuses['ccd_temperature'])
+
+            self.spModule.statusDataUpdated.emit(self.statuses)
+
+            time.sleep(0.5)
 
 
 class MonoChkState(QRunnable):
@@ -505,19 +595,19 @@ class SpectrumCompilation(QRunnable):
     def run(self):
         while not self.stop_event.is_set():
             for pos in self.mono_positions:
-                self.spModule.mutex.lock()
-                self.spModule.hardware.mono_goto(pos)
-                self.spModule.thread_pool.start(self.spModule.monoChkState)
-                self.spModule.mutex.unlock()
-
-                while True:
-                    self.spModule.mutex.lock()
-                    status = self.spModule.hardware.mono_status()
-                    self.spModule.mutex.unlock()
-                    if status == 'OK':
-                        break
-
-                    time.sleep(0.5)
+                # self.spModule.mutex.lock()
+                # self.spModule.hardware.mono_goto(pos)
+                # self.spModule.thread_pool.start(self.spModule.monoChkState)
+                # self.spModule.mutex.unlock()
+                #
+                # while True:
+                #     self.spModule.mutex.lock()
+                #     status = self.spModule.hardware.mono_status()
+                #     self.spModule.mutex.unlock()
+                #     if status == 'OK':
+                #         break
+                #
+                #     time.sleep(0.5)
 
                 self.spModule.ccd.frame()
                 self.frame_parsed.wait()

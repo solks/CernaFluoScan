@@ -2,12 +2,12 @@
   "Thorlabs": {
     "stageStep": 0.05,
     "stageX": 27504545,
-    "stageY": 27504531,
-    "stageZ": 27504608
+    "stageY": 27504608,
+    "stageZ": 27504531
   },
   "Andor": {
     "CCD-w": 1024,
-    "CCD-h": 256
+    "CCD-h": 255
   },
   "MDR": {
     "alpha_0": 0.12,

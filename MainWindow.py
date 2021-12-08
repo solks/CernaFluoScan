@@ -13,6 +13,7 @@ from HardWareCtrl import HardWare
 from AndorCtrl import AndorCCD
 from CameraCtrl import Cam
 
+
 class AppWindow(QMainWindow):
 
     storeParameters = True
@@ -114,20 +115,21 @@ class AppWindow(QMainWindow):
             self.CameraScWI.active = False
 
     def shut_down(self):
-        print('Shutting down the Andor CCD...')
-        # self.ccd.shut_down()
-        print('Shutting down HardWare...')
-        self.hardware.shut_down()
+        print('Save parameters...')
+        with open('current-params.json', 'w') as f:
+            json.dump(self.paramSet, f, indent=2)
 
         print('Stopping processes...')
         self.scanModule.stop_threads()
         self.spectraModule.stop_threads()
-        self.CameraSpWI.shut_down()
         self.CameraScWI.shut_down()
 
-        print('Save parameters...')
-        with open('current-params.json', 'w') as f:
-            json.dump(self.paramSet, f, indent=2)
+        print('Shutting down HardWare...')
+        self.hardware.shut_down()
+
+        print('Shutting down the Andor CCD...')
+        self.CameraSpWI.shut_down()
+        self.ccd.shut_down()
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, 'Message', "Are you sure to quit?",
@@ -149,6 +151,7 @@ control software.
 
 Developers:
 Oleksandr Stanovyi, astanovyi@gmail.com
+Vladimir Stolyarevsky
 
 Source code:
 https://github.com/solks/CernaFluoScan

@@ -15,7 +15,7 @@
 
 7. [+] Перенести Show scan area з CameraWi в ScanModuleUI.
 
-8. Monochromator communication protocol.
+8. [+] Monochromator communication protocol.
     Команди:
     'DS' - статус. Відповіді: 'OK' || 'BUSY' || 'ERROR',
     'DM' - модель контроллера. Відповіді: 'Monochromator controller, #<ID>',
@@ -25,3 +25,14 @@
     'G-70' - повернути гратку назад на 70 кроків. Відповіді: 'OK' || 'BUSY' || 'ERROR',
     'G0' - Переміщення в крайнє положення до спрацьовування кінцевого вимикача.
         Відповіді: 'OK' || 'BUSY' || 'ERROR',
+
+9. Trigering mode settings
+    Додати вікно параметрів тригеру зчитування кадрів з AndorCCD.
+
+10. Redout mode settings
+    Додати вікно параметрів зчитування даних з AndorCCD. Відповідно, змінити візуальне відображення кадру.
+
+11. CCD temperature settings
+    Додати вікно задання параметрів та вкл/викл охолодження CCD камери.
+
+12. Log.

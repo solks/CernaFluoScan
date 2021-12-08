@@ -27,18 +27,21 @@
     }
   },
   "stagePos": {
-    "step": 100,
+    "step": 200,
     "x": 0,
     "z": 0,
-    "y": 5
+    "y": 5,
+    "X": 112200,
+    "Y": 112400,
+    "Z": 112000
   },
   "frameSet": {
     "y-axis": 1,
-    "binningAvg": false,
+    "binningAvg": true,
     "x-axis": 0,
-    "column": 683,
-    "binning": 3,
-    "row": 115
+    "column": 615,
+    "binning": 1,
+    "row": 123
   },
   "windowSize": {
     "height": 960,
@@ -46,7 +49,7 @@
   },
   "Andor": {
     "VSAVoltage": 0,
-    "exposure": 3.0,
+    "exposure": 1.0,
     "gain": 0,
     "AcqMode": {
       "mode": 0,
@@ -55,17 +58,16 @@
       "kCycle": 20.0,
       "kSeries": 3
     },
-    "cooler": 1,
-    "trigMode": 3,
+    "trigMode": 0,
     "readMode": 0,
-    "ADCRate": 0,
-    "temperature": -20,
+    "ADCRate": 1,
+    "temperature": -10,
     "VSSpeed": 0
   },
   "cam": {
-    "exposure": 44,
+    "exposure": 29,
     "gain": 0,
-    "autoExp": 0,
+    "autoExp": 2,
     "hFlip": false,
     "savePath": "C:/LabProjects/CernaFluoScan/img",
     "vFlip": false,
@@ -76,7 +78,7 @@
   },
   "MDR-3": {
     "WL-start": 500.0,
-    "WL-inc": 2,
+    "WL-inc": 1,
     "WL-pos": 597.0236225376848,
     "grating-select": 1
   },
