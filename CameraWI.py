@@ -168,6 +168,7 @@ class CamWI(QFrame):
 
                 self.cam.ctrl.start_streaming()
             else:
+                self.active = False
                 if idx != 0:
                     self.paramSet['cam']['device'] = 0
                     self.camSelect.setCurrentIndex(0)

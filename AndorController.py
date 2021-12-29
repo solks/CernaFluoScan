@@ -13,6 +13,8 @@ class AndorCCD(QObject):
     TRIG_MODE = ('int', 'ext', 'fast_ext', 'ext_start')
     READ_MODE = ('image', 'single_track', 'multi_track', 'fvb')
 
+    connStatus = False
+
     frameAcquired = pyqtSignal(np.ndarray)
 
     def __init__(self, config, params):
@@ -23,6 +25,8 @@ class AndorCCD(QObject):
         try:
             self.cam = Andor.AndorSDK2Camera(temperature='off')
             # print(self.cam.get_device_info())
+            if self.cam.is_opened():
+                self.connStatus = True
 
             # self.frameProvider = FrameProvider(self.cam, self.ccdData, self.frameAcquired)
             self.frameProvider = FrameProvider(self.cam, self.frameAcquired)
@@ -40,70 +44,106 @@ class AndorCCD(QObject):
         except:
             if hasattr(self, 'cam') and self.cam.is_opened():
                 self.cam.close()
+                self.connStatus = False
 
     def frame(self):
-        self.frameProvider.acquire_frame()
+        if self.connStatus:
+            self.frameProvider.acquire_frame()
 
     def set_temperature(self, t):
-        self.cam.set_temperature(t)
-        return self.cam.get_temperature_setpoint()
+        if self.connStatus:
+            self.cam.set_temperature(t)
+            return self.cam.get_temperature_setpoint()
 
     def get_temperature(self):
-        return self.cam.get_temperature()
+        if self.connStatus:
+            return self.cam.get_temperature()
+        else:
+            return False
 
     def get_temperature_range(self):
-        return self.cam.get_temperature_range()
+        if self.connStatus:
+            return self.cam.get_temperature_range()
+        else:
+            return False
 
     def temperature_status(self):
-        return self.cam.get_temperature_status()
+        if self.connStatus:
+            return self.cam.get_temperature_status()
+        else:
+            return False
 
     def set_cooler(self, on=True):
-        self.cam.set_cooler(on)
+        if self.connStatus:
+            self.cam.set_cooler(on)
 
     def set_exposure(self, exp_time):
-        self.frameProvider.set_timeout(exp_time, self.cam.get_hsspeed_frequency())
-        return self.cam.set_exposure(exp_time)
+        if self.connStatus:
+            self.frameProvider.set_timeout(exp_time, self.cam.get_hsspeed_frequency())
+            return self.cam.set_exposure(exp_time)
+        else:
+            return False
 
     def set_acq_mode(self, acqParams):
         mode = self.ACQ_MODE[acqParams['mode']]
 
-        if mode == 'single':
-            return self.cam.set_acquisition_mode(mode, setup_params=False)
-        elif mode == 'accum':
-            return self.cam.setup_accum_mode(mode, acqParams['accumCycle'])
-        elif mode == 'kinetic':
-            return self.cam.setup_kinetic_mode(acqParams['kSeries'], acqParams['kCycle'], acqParams['accumFrames'], acqParams['accumCycle'])
-        elif mode == 'fast_kinetic':
-            return self.cam.setup_fast_kinetic_mode(acqParams['kSeries'], acqParams['accumCycle'])
-        elif mode == 'cont':
-            return self.cam.setup_cont_mode(acqParams['kCycle'])
+        if self.connStatus:
+            if mode == 'single':
+                return self.cam.set_acquisition_mode(mode, setup_params=False)
+            elif mode == 'accum':
+                return self.cam.setup_accum_mode(mode, acqParams['accumCycle'])
+            elif mode == 'kinetic':
+                return self.cam.setup_kinetic_mode(acqParams['kSeries'], acqParams['kCycle'], acqParams['accumFrames'], acqParams['accumCycle'])
+            elif mode == 'fast_kinetic':
+                return self.cam.setup_fast_kinetic_mode(acqParams['kSeries'], acqParams['accumCycle'])
+            elif mode == 'cont':
+                return self.cam.setup_cont_mode(acqParams['kCycle'])
+        else:
+            return False
 
     def set_trig_mode(self, mode_idx):
-        if self.TRIG_MODE[mode_idx] == 'fast_ext':
-            # self.cam.lib.SetFastExtTrigger(1)
-            return True
+        if self.connStatus:
+            if self.TRIG_MODE[mode_idx] == 'fast_ext':
+                # self.cam.lib.SetFastExtTrigger(1)
+                return True
+            else:
+                return self.cam.set_trigger_mode(self.TRIG_MODE[mode_idx])
         else:
-            return self.cam.set_trigger_mode(self.TRIG_MODE[mode_idx])
+            return False
 
     def set_read_mode(self, idx):
-        return self.cam.set_read_mode(self.READ_MODE[idx])
+        if self.connStatus:
+            return self.cam.set_read_mode(self.READ_MODE[idx])
+        else:
+            return False
 
     def set_adc_rate(self, adc_rate_idx):
-        self.frameProvider.set_timeout(self.cam.get_exposure(), self.cam.get_hsspeed_frequency())
-        return self.cam.set_amp_mode(hsspeed=adc_rate_idx)
+        if self.connStatus:
+            self.frameProvider.set_timeout(self.cam.get_exposure(), self.cam.get_hsspeed_frequency())
+            return self.cam.set_amp_mode(hsspeed=adc_rate_idx)
+        else:
+            return False
 
     def set_preamp(self, gain_idx):
-        return self.cam.set_amp_mode(preamp=gain_idx)
+        if self.connStatus:
+            return self.cam.set_amp_mode(preamp=gain_idx)
+        else:
+            return False
 
     def set_shift_speed(self, speed_idx):
-        return self.cam.set_vsspeed(speed_idx)
+        if self.connStatus:
+            return self.cam.set_vsspeed(speed_idx)
+        else:
+            return False
 
     def set_vsa_volt(self, vsa_idx):
         # self.cam.lib.SetVSAmplitude(vsa_idx)
-        return True
+        pass
 
     def shut_down(self):
-        self.cam.close()
+        if self.connStatus:
+            self.cam.close()
+            self.connStatus = False
 
 
 class FrameProvider(QThread):

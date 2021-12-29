@@ -3,15 +3,14 @@ from functools import partial
 from math import ceil
 from threading import Thread, Event
 
-from PyQt5.QtWidgets import (QProgressDialog)
-from PyQt5.QtCore import QThread, QRunnable, QThreadPool, QMutex, pyqtSignal, pyqtSlot, QObject
+from PyQt5.QtCore import Qt, QThread, QRunnable, QThreadPool, QMutex, QEventLoop, QTimer, pyqtSignal, pyqtSlot, QObject
 
-from SpectraModuleUI import SetTemperatureWindow
+from SpectraModuleUI import SpectraModuleUI, SetTemperatureWindow
 
 import numpy as np
 
 
-class SpectraModuleActions(QObject):
+class SpectraModule(SpectraModuleUI):
 
     spectraOverlap = 80
 
@@ -19,10 +18,10 @@ class SpectraModuleActions(QObject):
 
     statusDataUpdated = pyqtSignal(dict)
 
-    def __init__(self, ui, p_set, hardware, ccd):
-        super().__init__()
+    def __init__(self, cam_wi, ccd, hardware, hardware_conf, p_set, status_bar):
+        super().__init__(cam_wi, hardware_conf)
 
-        self.mainform = ui
+        self.statusBar = status_bar
         self.paramSet = p_set
         self.hardware = hardware
         self.ccd = ccd
@@ -60,60 +59,59 @@ class SpectraModuleActions(QObject):
         # print(self.framedata[1,1])
 
         self.connect_events()
+        self.init_parameters(self.paramSet)
 
     def connect_events(self):
-        mf = self.mainform
+        self.x_up.clicked.connect(partial(self.stage_move, 'X', 1))
+        self.x_down.clicked.connect(partial(self.stage_move, 'X', -1))
+        self.y_up.clicked.connect(partial(self.stage_move, 'Y', 1))
+        self.y_down.clicked.connect(partial(self.stage_move, 'Y', -1))
+        self.z_up.clicked.connect(partial(self.stage_move, 'Z', 1))
+        self.z_down.clicked.connect(partial(self.stage_move, 'Z', -1))
+        self.stop_move.clicked.connect(self.stage_stop)
 
-        mf.x_up.clicked.connect(partial(self.stage_move, 'X', 1))
-        mf.x_down.clicked.connect(partial(self.stage_move, 'X', -1))
-        mf.y_up.clicked.connect(partial(self.stage_move, 'Y', 1))
-        mf.y_down.clicked.connect(partial(self.stage_move, 'Y', -1))
-        mf.z_up.clicked.connect(partial(self.stage_move, 'Z', 1))
-        mf.z_down.clicked.connect(partial(self.stage_move, 'Z', -1))
-        mf.stop_move.clicked.connect(self.stage_stop)
-
-        mf.acquire_btn.clicked.connect(self.acquire)
+        self.acquire_btn.clicked.connect(self.acquire)
         self.spectrumAcquired.connect(self.show_spectrum)
 
-        mf.step_val.currentTextChanged.connect(self.stepinfo_change)
+        self.step_val.currentTextChanged.connect(self.stepinfo_change)
 
         # Monochromator Actions
-        mf.WLStart.editingFinished.connect(self.WL_start_change)
-        mf.WLEnd_dec.clicked.connect(self.WL_end_dec)
-        mf.WLEnd_inc.clicked.connect(self.WL_end_inc)
-        mf.monoSetPos.clicked.connect(self.mono_centralWL_set)
-        mf.monoGridSelect.currentIndexChanged.connect(self.mono_grid_select)
-        mf.monoStartup.connect(self.startup)
+        self.WLStart.editingFinished.connect(self.WL_start_change)
+        self.WLEnd_dec.clicked.connect(self.WL_end_dec)
+        self.WLEnd_inc.clicked.connect(self.WL_end_inc)
+        self.monoSetPos.clicked.connect(self.mono_centralWL_set)
+        self.monoGridSelect.currentIndexChanged.connect(self.mono_grid_select)
+        self.monoStartup.connect(self.startup)
 
         # Spectrum Actions
-        mf.vLine.sigPositionChanged.connect(self.ccd_vline_pos)
-        mf.hLine.sigPositionChanged.connect(self.ccd_hline_pos)
-        mf.frameColSelect.valueChanged.connect(self.ccd_col_select)
-        mf.frameRowSelect.valueChanged.connect(self.ccd_row_select)
+        self.vLine.sigPositionChanged.connect(self.ccd_vline_pos)
+        self.hLine.sigPositionChanged.connect(self.ccd_hline_pos)
+        self.frameColSelect.valueChanged.connect(self.ccd_col_select)
+        self.frameRowSelect.valueChanged.connect(self.ccd_row_select)
 
-        mf.spectrum.scene().sigMouseMoved.connect(self.spectrum_cursor_pos)
+        self.spectrum.scene().sigMouseMoved.connect(self.spectrum_cursor_pos)
         # mf.spectrum.scene().sigMouseClicked.connect(self.spectrum_mouse_click)
 
-        mf.rowBinning.valueChanged.connect(self.ccd_row_binning)
-        mf.avgBinning.toggled.connect(self.ccd_binning_avg)
+        self.rowBinning.valueChanged.connect(self.ccd_row_binning)
+        self.avgBinning.toggled.connect(self.ccd_binning_avg)
 
-        mf.XUnits.buttonClicked.connect(self.x_units_change)
-        mf.YUnits.buttonClicked.connect(self.y_units_change)
+        self.XUnits.buttonClicked.connect(self.x_units_change)
+        self.YUnits.buttonClicked.connect(self.y_units_change)
 
         # Andor actions
-        mf.exposureTime.editingFinished.connect(self.exposure_change)
-        mf.acquisitionMode.currentIndexChanged.connect(self.acq_mode_change)
-        mf.triggeringMode.currentIndexChanged.connect(self.trig_mode_change)
-        mf.readoutMode.currentIndexChanged.connect(self.read_mode_change)
-        mf.accumulationFrames.editingFinished.connect(self.accum_frames_change)
-        mf.accumulationCycle.editingFinished.connect(self.accum_cycle_change)
-        mf.kineticSeries.editingFinished.connect(self.knt_series_change)
-        mf.kineticCycle.editingFinished.connect(self.knt_cycle_change)
-        mf.readoutRate.currentIndexChanged.connect(self.adc_rate_change)
-        mf.preAmpGain.currentIndexChanged.connect(self.gain_change)
-        mf.VSSpeed.currentIndexChanged.connect(self.shift_speed_change)
-        mf.VSAVoltage.currentIndexChanged.connect(self.shift_speed_change)
-        mf.tSet.clicked.connect(self.show_tsettings)
+        self.exposureTime.editingFinished.connect(self.exposure_change)
+        self.acquisitionMode.currentIndexChanged.connect(self.acq_mode_change)
+        self.triggeringMode.currentIndexChanged.connect(self.trig_mode_change)
+        self.readoutMode.currentIndexChanged.connect(self.read_mode_change)
+        self.accumulationFrames.editingFinished.connect(self.accum_frames_change)
+        self.accumulationCycle.editingFinished.connect(self.accum_cycle_change)
+        self.kineticSeries.editingFinished.connect(self.knt_series_change)
+        self.kineticCycle.editingFinished.connect(self.knt_cycle_change)
+        self.readoutRate.currentIndexChanged.connect(self.adc_rate_change)
+        self.preAmpGain.currentIndexChanged.connect(self.gain_change)
+        self.VSSpeed.currentIndexChanged.connect(self.shift_speed_change)
+        self.VSAVoltage.currentIndexChanged.connect(self.shift_speed_change)
+        self.tSet.clicked.connect(self.show_tsettings)
 
         self.statusDataUpdated.connect(self.update_satatus_data)
 
@@ -121,36 +119,36 @@ class SpectraModuleActions(QObject):
         column = ceil(e.getXPos())
         self.paramSet['frameSet']['column'] = column
         self.upd_frame_section(column - 1)
-        self.mainform.frameColSelect.setValue(column)
+        self.frameColSelect.setValue(column)
 
     def ccd_hline_pos(self, e):
         row = ceil(e.getYPos())
         self.paramSet['frameSet']['row'] = row
         self.upd_spectrum(row - 1)
-        self.mainform.frameRowSelect.setValue(row)
+        self.frameRowSelect.setValue(row)
 
     def ccd_col_select(self, val):
         self.paramSet['frameSet']['column'] = val
         self.upd_frame_section(val - 1)
-        self.mainform.vLine.setPos([val, 0])
+        self.vLine.setPos([val, 0])
 
     def ccd_row_select(self, val):
         self.paramSet['frameSet']['row'] = val
         self.upd_spectrum(val)
-        self.mainform.hLine.setPos([0, val])
+        self.hLine.setPos([0, val])
 
     def spectrum_cursor_pos(self, e):
         # pos = (e.x(), e.y())
         pos = e
-        if self.mainform.spectrum.sceneBoundingRect().contains(pos):
-            mouse_point = self.mainform.spectrum.plotItem.vb.mapSceneToView(pos)
-            self.mainform.cursorPosLbl.setText("X = %0.1f, Y = %0.1f"
+        if self.spectrum.sceneBoundingRect().contains(pos):
+            mouse_point = self.spectrum.plotItem.vb.mapSceneToView(pos)
+            self.cursorPosLbl.setText("X = %0.1f, Y = %0.1f"
                                                % (mouse_point.x(), mouse_point.y()))
-            self.mainform.spectrumCursor.setPos((mouse_point.x()/2.0, mouse_point.y()/2.0))
+            self.spectrumCursor.setPos((mouse_point.x()/2.0, mouse_point.y()/2.0))
 
     # def spectra_mouse_click(self, e):
     #     if e.button() == Qt.RightButton:
-    #         self.mainform.spectrum.autoRange()
+    #         self.spectrum.autoRange()
 
     def ccd_row_binning(self, val):
         self.paramSet['frameSet']['binning'] = val
@@ -161,7 +159,7 @@ class SpectraModuleActions(QObject):
         self.upd_spectrum()
 
     def x_units_change(self):
-        units_id = self.mainform.XUnits.checkedId()
+        units_id = self.XUnits.checkedId()
         self.paramSet['frameSet']['x-axis'] = units_id
 
         strip_size = self.ccdWidth - self.spectraOverlap
@@ -174,7 +172,7 @@ class SpectraModuleActions(QObject):
             for n in range(strip_size, self.ccdWidth):
                 self.coordinates[offset_idx + n] = self.hardware.mono_toWL(p, n)
 
-            self.mainform.spectrum.plotItem.setLabels(bottom='Wavelength (nm)')
+            self.spectrum.plotItem.setLabels(bottom='Wavelength (nm)')
 
         elif units_id == 1:
             # eV
@@ -185,16 +183,16 @@ class SpectraModuleActions(QObject):
             for n in range(strip_size, self.ccdWidth):
                 self.coordinates[offset_idx + n] = 1239.84193 / self.hardware.mono_toWL(p, n)
 
-            self.mainform.spectrum.plotItem.setLabels(bottom='Energy (eV)')
+            self.spectrum.plotItem.setLabels(bottom='Energy (eV)')
 
         else:
             # pixel number
             self.coordinates = np.arange(self.spWidth, dtype=np.float)
-            self.mainform.spectrum.plotItem.setLabels(bottom='Pixel number')
+            self.spectrum.plotItem.setLabels(bottom='Pixel number')
 
         self.upd_spectrum()
 
-        spectrum_vb = self.mainform.spectrum.vb
+        spectrum_vb = self.spectrum.vb
         if self.coordinates[0] < self.coordinates[self.spWidth-1]:
             spectrum_vb.setXRange(self.coordinates[0], self.coordinates[self.spWidth-1], padding=0.02)
             # spectrum_vb.setLimits(xMin=self.coordinates[0], xMax=self.coordinates[self.spWidth-1])
@@ -203,7 +201,7 @@ class SpectraModuleActions(QObject):
             # spectrum_vb.setLimits(xMin=self.coordinates[self.spWidth-1], xMax=self.coordinates[0])
 
     def y_units_change(self):
-        units_id = self.mainform.YUnits.checkedId()
+        units_id = self.YUnits.checkedId()
         self.paramSet['frameSet']['y-axis'] = units_id
 
         if units_id == 1:
@@ -224,26 +222,26 @@ class SpectraModuleActions(QObject):
             max_row = ceil(row + bin_rows / 2)
 
             if self.paramSet['frameSet']['binningAvg']:
-                self.mainform.spectrum.curve.setData(
+                self.spectrum.curve.setData(
                     x=self.coordinates,
                     y=np.average(self.spData[min_row:max_row, :], axis=0) * self.n_factor
                 )
             else:
-                self.mainform.spectrum.curve.setData(
+                self.spectrum.curve.setData(
                     x=self.coordinates,
                     y=np.sum(self.spData[min_row:max_row, :], axis=0) * self.n_factor
                 )
         else:
-            self.mainform.spectrum.curve.setData(
+            self.spectrum.curve.setData(
                 x=self.coordinates,
                 y=self.spData[row, :] * self.n_factor
             )
 
     def upd_frame_section(self, column=-1):
         if column == -1:
-            column = self.mainform.frameColSelect.value() - 1
+            column = self.frameColSelect.value() - 1
 
-        self.mainform.frameSection.curve.setData(x=self.spData[:, column], y=np.arange(self.ccdHeight))
+        self.frameSection.curve.setData(x=self.spData[:, column], y=np.arange(self.ccdHeight))
 
     def resize_spectrum(self, pcs, keep_previous=False):
         # resizing spectrum data array
@@ -264,12 +262,12 @@ class SpectraModuleActions(QObject):
         self.x_units_change()
 
         # updating all widget sizes
-        self.mainform.CCDFrame.vb.setLimits(xMin=0, xMax=self.spWidth-1, yMin=0, yMax=self.ccdHeight-1)
-        self.mainform.vLine.setBounds((0.5, self.spWidth-0.5))
-        self.mainform.frameColSelect.setRange(1, self.spWidth)
+        self.CCDFrame.vb.setLimits(xMin=0, xMax=self.spWidth-1, yMin=0, yMax=self.ccdHeight-1)
+        self.vLine.setBounds((0.5, self.spWidth-0.5))
+        self.frameColSelect.setRange(1, self.spWidth)
 
     def WL_start_change(self):
-        WL_start = self.mainform.WLStart.value()
+        WL_start = self.WLStart.value()
         self.paramSet['MDR-3']['WL-start'] = WL_start
 
         # updating monochromator positions
@@ -280,7 +278,7 @@ class SpectraModuleActions(QObject):
                 steps_next = self.hardware.mono_toSteps(WL_next)
                 self.mono_positions[i] = steps_next
         WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdWidth)
-        self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
+        self.WLEnd.setText("{0:.2f}".format(WL_end))
 
         self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'], False)
         self.spectrumCmp.set_range_points(self.mono_positions)
@@ -292,7 +290,7 @@ class SpectraModuleActions(QObject):
         self.paramSet['MDR-3']['WL-inc'] += 1
 
         WL_end = self.hardware.mono_toWL(steps_inc, self.ccdWidth)
-        self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
+        self.WLEnd.setText("{0:.2f}".format(WL_end))
 
         self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'], True)
         self.spectrumCmp.set_range_points(self.mono_positions)
@@ -303,14 +301,14 @@ class SpectraModuleActions(QObject):
             self.paramSet['MDR-3']['WL-inc'] -= 1
 
             WL_end = self.hardware.mono_toWL(self.mono_positions[-1], self.ccdWidth)
-            self.mainform.WLEnd.setText("{0:.2f}".format(WL_end))
+            self.WLEnd.setText("{0:.2f}".format(WL_end))
 
             self.resize_spectrum(self.paramSet['MDR-3']['WL-inc'], True)
             self.spectrumCmp.set_range_points(self.mono_positions)
 
     def mono_centralWL_set(self):
         # Position (in steps) is calculated according to the first pixel, WL - to the center pixel
-        WL_set = self.mainform.monoGridPos.value()
+        WL_set = self.monoGridPos.value()
         pos_cp = self.hardware.mono_toSteps(WL_set)
         WL_fp = WL_set - (self.hardware.mono_toWLC(pos_cp) - WL_set)
         pos_set = self.hardware.mono_toSteps(WL_fp)
@@ -327,31 +325,31 @@ class SpectraModuleActions(QObject):
         if current_pos is not False:
             current_WL = self.hardware.mono_toWLC(current_pos)
             self.paramSet['MDR-3']['WL-pos'] = current_WL
-            self.mainform.monoCurrentPos.setText("{0:.2f}".format(current_WL) + ' nm')
+            self.monoCurrentPos.setText("{0:.2f}".format(current_WL) + ' nm')
         else:
-            self.mainform.monoCurrentPos.setText(" -- ")
-            self.mainform.statusBar.showMessage('Monochromator position error...')
+            self.monoCurrentPos.setText(" -- ")
+            self.statusBar.showMessage('Monochromator position error...')
 
     def mono_calibration(self):
         ans = self.hardware.mono_move_start()
         if ans == 'OK':
             self.thread_pool.start(self.monoChkState)
         elif ans == 'BUSY':
-            self.mainform.statusBar.showMessage('Monochromator is busy. Please try again later.')
+            self.statusBar.showMessage('Monochromator is busy. Please try again later.')
         else:
-            self.mainform.statusBar.showMessage('Monochromator connection error...')
+            self.statusBar.showMessage('Monochromator connection error...')
 
     def mono_grid_select(self, grid_idx):
         self.paramSet['MDR-3']['grating-select'] = grid_idx
 
     def exposure_change(self):
-        exp_time = self.mainform.exposureTime.value()
+        exp_time = self.exposureTime.value()
         self.paramSet['Andor']['exposure'] = exp_time
         self.ccd.set_exposure(exp_time)
 
     def acq_mode_change(self, mode):
         self.paramSet['Andor']['AcqMode']['mode'] = mode
-        self.mainform.mode_prm_enable(mode)
+        self.mode_prm_enable(mode)
         self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def trig_mode_change(self, mode):
@@ -363,22 +361,22 @@ class SpectraModuleActions(QObject):
         self.ccd.set_read_mode(mode)
 
     def accum_frames_change(self):
-        n = self.mainform.accumulationFrames.value()
+        n = self.accumulationFrames.value()
         self.paramSet['Andor']['AcqMode']['accumFrames'] = n
         self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def accum_cycle_change(self):
-        cycle_time = self.mainform.accumulationCycle.value()
+        cycle_time = self.accumulationCycle.value()
         self.paramSet['Andor']['AcqMode']['accumCycle'] = cycle_time
         self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def knt_series_change(self):
-        n = self.mainform.kineticSeries.value()
+        n = self.kineticSeries.value()
         self.paramSet['Andor']['AcqMode']['kSeries'] = n
         self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
     def knt_cycle_change(self):
-        cycle_time = self.mainform.kineticCycle.value()
+        cycle_time = self.kineticCycle.value()
         self.paramSet['Andor']['AcqMode']['kCycle'] = cycle_time
         self.ccd.set_acq_mode(self.paramSet['Andor']['AcqMode'])
 
@@ -409,21 +407,21 @@ class SpectraModuleActions(QObject):
         self.paramSet['stagePos']['step'] = steps
 
         dst = "{0:.2f}".format(self.hardware.minStageStep * steps)
-        self.mainform.distance_lbl.setText('Distance: ' + dst + 'um')
+        self.distance_lbl.setText('Distance: ' + dst + 'um')
 
     def stage_move(self, axis, direction, checked=False):
-        steps = int(self.mainform.step_val.currentText()) * direction
+        steps = int(self.step_val.currentText()) * direction
 
         self.hardware.stage_move(axis, steps)
-        new_pos = int(self.mainform.x_pos.text()) + steps
+        new_pos = int(self.x_pos.text()) + steps
         self.paramSet['stagePos'][axis] = new_pos
 
         if axis == 'X':
-            self.mainform.x_pos.setText(str(new_pos))
+            self.x_pos.setText(str(new_pos))
         elif axis == 'Y':
-            self.mainform.y_pos.setText(str(new_pos))
+            self.y_pos.setText(str(new_pos))
         elif axis == 'Z':
-            self.mainform.z_pos.setText(str(new_pos))
+            self.z_pos.setText(str(new_pos))
 
     def stage_stop(self):
         for axis in ('X', 'Y', 'Z'):
@@ -432,10 +430,10 @@ class SpectraModuleActions(QObject):
         for axis in ('X', 'Y', 'Z'):
             pos = self.hardware.get_stage_position(axis)
             self.paramSet['stagePos'][axis] = pos
-            self.mainform.x_pos.setText(str(pos))
+            self.x_pos.setText(str(pos))
 
     def show_spectrum(self):
-        self.mainform.CCDFrame.image.setImage(self.spData)
+        self.CCDFrame.image.setImage(self.spData)
         self.upd_spectrum()
         self.upd_frame_section()
 
@@ -445,39 +443,49 @@ class SpectraModuleActions(QObject):
     def update_satatus_data(self, statuses):
         # CCD cooling status
         if statuses['ccd_cooling'] in ['not_reached', 'not_stabilized']:
-            self.mainform.tCurrent.setStyleSheet("color: red")
+            self.tCurrent.setStyleSheet("color: red")
         elif statuses['ccd_cooling'] == 'stabilized':
-            self.mainform.tCurrent.setStyleSheet("color: green")
+            self.tCurrent.setStyleSheet("color: green")
         elif statuses['ccd_cooling'] == 'drifted':
-            self.mainform.tCurrent.setStyleSheet("color: yellow")
+            self.tCurrent.setStyleSheet("color: yellow")
         else:
-            self.mainform.tCurrent.setStyleSheet("color: grey")
+            self.tCurrent.setStyleSheet("color: grey")
 
         # Current temperature
         self.tSettings.tCurrent.setText(str(statuses['ccd_temperature']))
-        self.mainform.tCurrent.setText(str(statuses['ccd_temperature']))
+        self.tCurrent.setText(str(statuses['ccd_temperature']))
+
+    def tSafe_stabilization(self, progress):
+        t_target = -10
+        t = self.ccd.get_temperature()
+        self.ccd.set_temperature(t_target)
+        t_prev = t
+
+        while self.ccd.temperature_status() != 'stabilized':
+            loop = QEventLoop()
+            QTimer.singleShot(500, loop.quit)
+            loop.exec_()
+
+            t_current = self.ccd.get_temperature()
+            if (t_current > t_prev) and (t_current < t_target):
+                progress.setValue(int(100 * (1 - (t_target - t_current) / (t_target - t))))
+                t_prev = t_current
+
+        progress.setValue(100)
+        return True
 
     def stop_threads(self):
         self.spectrumCmp.stop()
         self.monoChkState.stop()
 
-        t = self.ccd.get_temperature()
-        status = self.ccd.temperature_status()
-        if t < -10:
-            self.camShotdownProgress = QProgressDialog("CCD temperature stabilization...\n Do not turn off the camera "
-                                                       "cooling unit and power supply!", "Cancel", 0, 100)
-            # self.camShotdownProgress.setCancelButton(False)
-            self.camShotdownProgress.show()
+        if self.ccd.get_temperature() < -10:
+            self.camShutdownProgress.setWindowModality(Qt.WindowModal)
+            self.camShutdownProgress.show()
+            self.camShutdownProgress.setValue(0)
 
-            t_target = -10
-            self.ccd.set_temperature(t_target)
-
-            while self.ccd.temperature_status() != 'stabilized':
-                t_current = self.ccd.get_temperature()
-                self.camShotdownProgress.setValue(int(100 * (t_target - t_current) / (t_target - t)))
-                time.sleep(0.5)
-
-            self.camShotdownProgress.setValue(100)
+            self.tSafe_stabilization(self.camShutdownProgress)
+            self.camShutdownProgress.setValue(100)
+            self.camShutdownProgress.close()
 
         self.ccd.set_cooler(False)
 
@@ -504,11 +512,11 @@ class StatusUpdate (QThread):
     def run(self):
         while not self.stop_event.is_set():
             # CCD cooling
-            self.statuses['ccd_temperature'] = round(self.spModule.ccd.get_temperature(), 1)
-            self.statuses['ccd_cooling'] = self.spModule.ccd.temperature_status()
-            # print(self.statuses['ccd_temperature'])
+            if self.spModule.ccd.connStatus:
+                self.statuses['ccd_temperature'] = round(self.spModule.ccd.get_temperature(), 1)
+                self.statuses['ccd_cooling'] = self.spModule.ccd.temperature_status()
 
-            self.spModule.statusDataUpdated.emit(self.statuses)
+                self.spModule.statusDataUpdated.emit(self.statuses)
 
             time.sleep(0.5)
 

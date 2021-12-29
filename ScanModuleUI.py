@@ -12,11 +12,10 @@ import pyqtgraph as pg
 
 class ScanModuleUI(QWidget):
 
-    def __init__(self, cam_wi, status_bar):
+    def __init__(self, cam_wi):
         super().__init__()
 
         self.CameraWI = cam_wi
-        self.statusBar = status_bar
 
         self.ui_construct()
 

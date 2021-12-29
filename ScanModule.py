@@ -2,34 +2,38 @@ from functools import partial
 import threading
 import time
 
+from ScanModuleUI import ScanModuleUI
 
-class ScanModuleActions(object):
+
+class ScanModule(ScanModuleUI):
 
     _scanThread = False
 
-    def __init__(self, ui, p_set, hardware, spectra_module):
+    def __init__(self, cam_wi, spectra_module, hardware, p_set, status_bar):
+        super().__init__(cam_wi)
 
-        self.ui = ui
         self.paramSet = p_set
         self.hardware = hardware
         self.spectraModule = spectra_module
+        self.statusBar = status_bar
 
         self.connect_events()
+        self.init_parameters(self.paramSet)
 
     def connect_events(self):
 
-        for i, el in enumerate(self.ui.scanSetup):
+        for i, el in enumerate(self.scanSetup):
             el['use'].stateChanged.connect(partial(self.scan_setup_change, idx=i, par_id=0))
             el['instrument'].currentIndexChanged.connect(partial(self.scan_setup_change, idx=i, par_id=1))
             el['count'].currentTextChanged.connect(partial(self.scan_setup_change, idx=i, par_id=2))
             el['step'].currentTextChanged.connect(partial(self.scan_setup_change, idx=i, par_id=3))
 
-        for i, el in enumerate(self.ui.scanActions):
+        for i, el in enumerate(self.scanActions):
             el['use'].stateChanged.connect(partial(self.scan_actions_change, idx=i, par_id=0))
             el['action'].currentIndexChanged.connect(partial(self.scan_actions_change, idx=i, par_id=1))
             el['par1'].textChanged.connect(partial(self.scan_actions_change, idx=i, par_id=2))
 
-        self.ui.scanStart.clicked.connect(self.run_scan)
+        self.scanStart.clicked.connect(self.run_scan)
 
     def stop_threads(self):
         self._scanThread = False

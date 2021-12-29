@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import (QWidget, QMainWindow, QFrame, QSplitter, QSizePolicy,
                              QPushButton, QToolButton, QLabel, QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox,
                              QRadioButton, QLineEdit, QSlider, QButtonGroup, QGroupBox, QTableWidget, QTableWidgetItem,
-                             QHeaderView, QTabWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView)
+                             QHeaderView, QTabWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QAbstractItemView,
+                             QProgressDialog)
 from PyQt5.QtCore import Qt, pyqtSignal, QRectF, QLineF, QPointF
 from PyQt5.QtGui import QIntValidator
 import qdarkstyle
@@ -15,11 +16,10 @@ class SpectraModuleUI(QWidget):
 
     monoStartup = pyqtSignal()
 
-    def __init__(self, cam_wi, status_bar, hardware_conf):
+    def __init__(self, cam_wi, hardware_conf):
         super().__init__()
 
         self.CameraWI = cam_wi
-        self.statusBar = status_bar
 
         self.ui_construct(hardware_conf)
 
@@ -132,7 +132,7 @@ class SpectraModuleUI(QWidget):
         view_area = QTabWidget(self)
         view_area.setTabPosition(QTabWidget.West)
         ccd = QFrame(self)
-        view_area.addTab(ccd, "Spectra acquisition")
+        view_area.addTab(ccd, "Spectrum acquisition")
         view_area.addTab(self.CameraWI, "Camera")
 
         view_area_lay = QVBoxLayout(topright_frame)
@@ -495,25 +495,38 @@ class SpectraModuleUI(QWidget):
         cam_settings_lay.addWidget(cam_mode_group)
         cam_settings_lay.addWidget(cam_readout_group)
 
+        self.camShutdownProgress = QProgressDialog("CCD temperature stabilization...\n Do not turn off the camera "
+                                                   "cooling unit and power supply!", None, 0, 100)
+        self.camShutdownProgress.setWindowTitle('CCD shutdown')
+        self.camShutdownProgress.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+        self.camShutdownProgress.setWindowFlags(
+            Qt.Window |
+            Qt.CustomizeWindowHint |
+            Qt.WindowTitleHint |
+            Qt.WindowStaysOnTopHint
+        )
+        self.camShutdownProgress.close()
+
 
 class SetTemperatureWindow(QMainWindow):
     def __init__(self, ccd):
         super().__init__()
 
         self.setup_ui()
+        self.setWindowTitle('CCD temperature')
+        self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 
         self.ccd = ccd
 
         rng = self.ccd.get_temperature_range()
         sr = "{1} to {0}"
-        self.tTarget.setMinimum(rng[0])
-        self.tTarget.setMaximum(rng[1])
-        self.tRange.setText(sr.format(*rng))
+        if rng:
+            self.tTarget.setMinimum(rng[0])
+            self.tTarget.setMaximum(rng[1])
+            self.tRange.setText(sr.format(*rng))
 
         self.tSet.clicked.connect(self.set_temperature)
         self.cooler.buttonClicked.connect(self.set_cooler)
-
-        self.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
 
     def setup_ui(self):
         temperature_group = QFrame(self)

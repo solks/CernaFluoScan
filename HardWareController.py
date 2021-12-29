@@ -3,8 +3,6 @@ import re
 import serial
 import serial.tools.list_ports
 import math
-from thorpy.comm.discovery import discover_stages
-from thorpy.message.motorcontrol import *
 from CubeController import *
 
 class HardWare(object):
